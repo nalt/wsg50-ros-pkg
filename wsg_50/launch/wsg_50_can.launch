@@ -1,0 +1,9 @@
+<?xml version="1.0"?>
+<launch>
+
+  <node  name="wsg_50_can"  pkg="wsg_50" type="wsg_50_can">
+	<param name="device" type="string" value="/dev/pcan32"/>
+  </node>
+
+</launch>
+
