@@ -36,7 +36,6 @@
 #include <std_srvs/Empty.h>
 
 ros::Publisher vel_pub_r_, vel_pub_l_;
-ros::Publisher rot_pub_r_, rot_pub_l_;
 int tPos;
 
 bool moveSrv(wsg_50_simulation::Move::Request &req, wsg_50_simulation::Move::Response &res)
@@ -93,8 +92,6 @@ int main(int argc, char** argv){
 	ros::ServiceServer homingSS = nh.advertiseService("wsg_50_sim_driver/homing", homingSrv);
 	vel_pub_r_ = nh.advertise<std_msgs::Float64>("/wsg_50_gr/command", 1000);
     	vel_pub_l_ = nh.advertise<std_msgs::Float64>("/wsg_50_gl/command", 1000);
-	rot_pub_r_ = nh.advertise<std_msgs::Float64>("/wsg_50_dr/command", 1000);
-    	rot_pub_l_ = nh.advertise<std_msgs::Float64>("/wsg_50_dl/command", 1000);
 	
 	ros::spin();
 	
