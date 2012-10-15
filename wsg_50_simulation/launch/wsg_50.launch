@@ -1,0 +1,30 @@
+<?xml version="1.0"?>
+<launch>
+
+  <param name="/use_sim_time" value="true" />
+
+  <!-- start world -->
+  <include file="$(find gazebo_worlds)/launch/empty_world.launch"/>
+ 
+  <!-- send wsg_50.urdf to param server -->
+  <param name="robot_description" textfile="$(find wsg_50_simulation)/urdf/wsg_50.urdf" />
+
+  <!-- push gripper_description to factory and spawn the gripper in gazebo -->
+  <node name="spawn_gripper" pkg="gazebo" type="spawn_model" args="-urdf -param robot_description -x 0 -y 0 -z 0.35 -model wsg_50" respawn="false" output="screen"/>
+
+  <!-- Launch the joint controller -->
+  <include file="$(find wsg_50_simulation)/launch/wsg_50_controllers.launch"/>
+
+  <!-- Launch de joint state publisher, necessary to define the gripper dependency relation -->
+  <param name="use_gui" value="True"/>
+  <rosparam command="load" file="$(find wsg_50_simulation)/urdf/wsg_50_dependent_joints.yaml"/>
+  <!--node name="joint_state_publisher" pkg="joint_state_publisher" type="joint_state_publisher"/-->
+  <node name="robot_state_publisher" pkg="robot_state_publisher" type="state_publisher" />
+  
+  <!-- Launch the fake driver to provide the same services that in the real gripper -->
+  <node name="wsg_50_sim_driver" pkg="wsg_50_simulation" type="wsg_50_sim_driver" />
+
+  <!--LAUNCH RVIZ -->	
+  <!--node name="rviz" pkg="rviz" type="rviz" args="-d $(find urdf_tutorial)/urdf.vcg" /-->
+
+</launch>

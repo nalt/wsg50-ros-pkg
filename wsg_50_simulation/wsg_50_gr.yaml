@@ -1,0 +1,7 @@
+wsg_50_gr:
+  type: robot_mechanism_controllers/JointPositionController
+  joint: base_joint_gripper_right
+  pid:
+    p: 100.0
+    d: 10.0
+

@@ -1,0 +1,7 @@
+<?xml version="1.0"?>
+<launch>
+
+  <!-- Launch the node for keyboard teleoperation -->
+  <node name="wsg_50_sim_keyboard_teleop" pkg="wsg_50_simulation" type="wsg_50_sim_keyboard_teleop"/>
+
+</launch>
