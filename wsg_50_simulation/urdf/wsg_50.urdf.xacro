@@ -1,29 +1,16 @@
 <?xml version="1.0"?>
-<robot name="wsg_50" 
-
-       xmlns:xi="http://www.w3.org/2001/XInclude"
-       xmlns:gazebo="http://playerstage.sourceforge.net/gazebo/xmlschema/#gz"
-       xmlns:model="http://playerstage.sourceforge.net/gazebo/xmlschema/#model"
-       xmlns:sensor="http://playerstage.sourceforge.net/gazebo/xmlschema/#sensor"
-       xmlns:body="http://playerstage.sourceforge.net/gazebo/xmlschema/#body"
-       xmlns:geom="http://playerstage.sourceforge.net/gazebo/xmlschema/#geom"
-       xmlns:joint="http://playerstage.sourceforge.net/gazebo/xmlschema/#joint"
-       xmlns:interface="http://playerstage.sourceforge.net/gazebo/xmlschema/#interface"
-       xmlns:rendering="http://playerstage.sourceforge.net/gazebo/xmlschema/#rendering"
-       xmlns:renderable="http://playerstage.sourceforge.net/gazebo/xmlschema/#renderable"
-       xmlns:controller="http://playerstage.sourceforge.net/gazebo/xmlschema/#controller"
-       xmlns:physics="http://playerstage.sourceforge.net/gazebo/xmlschema/#physics"
-       xmlns:xacro="http://ros.org/wiki/xacro">
+<robot name="wsg_50"
+	 xmlns:xacro="http://ros.org/wiki/xacro">
 
 <xacro:macro name="wsg_50_xacro" params="parent *origin">
 
- <joint name="arm_gripper_joint" type="fixed">
+ <joint name="anterior_gripper_joint" type="fixed">
     <insert_block name="origin"/>
     <parent link="${parent}"/>
     <child link="wsg_50_base_link"/>
  </joint>
 
- <!-- BASE LINK -->
+<!-- BASE LINK -->
  <link name="wsg_50_base_link">
       <inertial>
           <mass value="1.2" />
@@ -37,7 +24,7 @@
       <visual>
           <origin xyz="0.0 0 0" rpy="0 0 0" />
           <geometry>
-             <mesh filename="package://wsg_50_simulation/meshes/WSG50_110.stl" scale="0.001 0.001 0.001"/>
+             <mesh filename="package://wsg_50_simulation/meshes/WSG50_110.stl" scale="1 1 1"/>
 	     <!--box size="0.146 0.05 0.0735"/-->
           </geometry>
           <material name="grey">
@@ -49,7 +36,7 @@
           <origin xyz="0.0 0 0" rpy="0 0 0" />
           <geometry>
 	     <!--box size="0.146 0.05 0.0735"/-->
-             <mesh filename="package://wsg_50_simulation/meshes/WSG50_110.stl" scale="0.001 0.001 0.001"/>
+             <mesh filename="package://wsg_50_simulation/meshes/WSG50_110.stl" scale="1 1 1"/>
          </geometry>
      </collision>
   </link>
@@ -109,7 +96,7 @@
 
   <gazebo reference="gripper_left">
     <material>Gazebo/Blue</material>
-    <turnGravityOff>true</turnGravityOff>
+    <turnGravityOff>false</turnGravityOff>
   </gazebo>
 
 
@@ -153,7 +140,7 @@
 
   <gazebo reference="finger_left">
     <material>Gazebo/Blue</material>
-    <turnGravityOff>true</turnGravityOff>
+    <turnGravityOff>false</turnGravityOff>
   </gazebo>
 
 
@@ -207,7 +194,7 @@
 
   <gazebo reference="gripper_right">
     <material>Gazebo/White</material>
-    <turnGravityOff>true</turnGravityOff>
+    <turnGravityOff>false</turnGravityOff>
   </gazebo>
 
   <!-- RIGHT FINGER -->
@@ -250,17 +237,8 @@
 
   <gazebo reference="finger_right">
     <material>Gazebo/White</material>
-    <turnGravityOff>true</turnGravityOff>
+    <turnGravityOff>false</turnGravityOff>
   </gazebo>
-
-  <!-- PR2_ACTARRAY -->
-  <!--gazebo>
-     <controller:gazebo_ros_controller_manager name="gazebo_ros_controller_manager" plugin="libgazebo_ros_controller_manager.so">
-       <alwaysOn>true</alwaysOn>
-       <updateRate>1000.0</updateRate>
-       <interface:audio name="gazebo_ros_controller_manager_dummy_iface" />
-     </controller:gazebo_ros_controller_manager>
-  </gazebo-->
 
 </xacro:macro>
 

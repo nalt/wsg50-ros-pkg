@@ -31,19 +31,21 @@
  */
 
 #include <ros/ros.h>
-#include <wsg_50_simulation/Move.h>
+#include <wsg_50/Move.h>
+#include <wsg_50/Incr.h>
 #include <std_msgs/Float64.h>
 #include <std_srvs/Empty.h>
 
-ros::Publisher vel_pub_r_, vel_pub_l_;
-int tPos;
+#define GRIPPER_MAX_OPEN 110.0
+#define GRIPPER_MIN_OPEN 0.0
 
-bool moveSrv(wsg_50_simulation::Move::Request &req, wsg_50_simulation::Move::Response &res)
-{
-	if ( req.width >= 0.0 && req.width <= 110.0 ){
-  		ROS_INFO("Moving to %f position.", req.width);
-  	
-		double open = req.width / 2;
+ros::Publisher vel_pub_r_, vel_pub_l_;
+ros::ServiceClient moveSC;
+double currentOpenning;
+
+void move(double width){
+	
+		double open = width / 2;
 		
 		std_msgs::Float64 lCommand, rCommand;
 		
@@ -53,10 +55,18 @@ bool moveSrv(wsg_50_simulation::Move::Request &req, wsg_50_simulation::Move::Res
 		vel_pub_r_.publish(rCommand);
 		vel_pub_l_.publish(lCommand);
 		
+		currentOpenning = width;
+	
+}
+
+bool moveSrv(wsg_50::Move::Request &req, wsg_50::Move::Response &res)
+{
+	if ( req.width >= 0.0 && req.width <= 110.0 ){
+  		ROS_INFO("Moving to %f position.", req.width);
+		move(req.width);
 		
 	}else if (req.width < 0.0 || req.width > 110.0){
 		ROS_ERROR("Imposible to move to this position. (Width values: [0.0 - 110.0] ");
-		//res.error = 255;
 		return false;
 	}
 
@@ -64,19 +74,53 @@ bool moveSrv(wsg_50_simulation::Move::Request &req, wsg_50_simulation::Move::Res
   	return true;
 }
 
+bool moveIncrementallySrv(wsg_50::Incr::Request &req, wsg_50::Incr::Response &res)
+{
+				
+	if (req.direction == "open"){
+		
+		float nextWidth = currentOpenning + req.increment;
+		
+		if ( (currentOpenning < GRIPPER_MAX_OPEN) && nextWidth < GRIPPER_MAX_OPEN ){
+			move(nextWidth);
+		}else if( nextWidth >= GRIPPER_MAX_OPEN){
+			move(nextWidth);
+			currentOpenning = GRIPPER_MAX_OPEN;
+		}
+
+	}else if (req.direction == "close"){
+
+		float nextWidth = currentOpenning - req.increment;
+		
+		if ( (currentOpenning > GRIPPER_MIN_OPEN) && nextWidth > GRIPPER_MIN_OPEN ){
+			move(nextWidth);
+		}else if( nextWidth <= GRIPPER_MIN_OPEN){
+			move(nextWidth);
+			currentOpenning = GRIPPER_MIN_OPEN;
+		}
+	}
+	
+}
+
 
 bool homingSrv(std_srvs::Empty::Request &req, std_srvs::Empty::Request &res)
 {
 	ROS_INFO("Homing...");
 	
-	std_msgs::Float64 lCommand, rCommand;
-	
-	rCommand.data = lCommand.data = 0.0;
-	
-	vel_pub_r_.publish(rCommand);
-	vel_pub_l_.publish(lCommand);
+	move(0.0);
 	
 	ROS_INFO("Home position reached.");
+	return true;
+}
+
+bool graspSrv(wsg_50::Move::Request &req, wsg_50::Move::Request &res)
+{
+	ROS_INFO("Grasping...");
+	
+	// TODO: Increase finger force
+	move(0.0);
+	
+	ROS_INFO("Object grasped");
 	return true;
 }
 
@@ -86,12 +130,15 @@ int main(int argc, char** argv){
 	ros::init(argc, argv, "wsg_50_sim_driver");
 
 	ros::NodeHandle nh;
-	tPos = 0;
+    currentOpenning = 0.0;
 	
-	ros::ServiceServer moveSS = nh.advertiseService("wsg_50_sim_driver/move", moveSrv);
-	ros::ServiceServer homingSS = nh.advertiseService("wsg_50_sim_driver/homing", homingSrv);
+	ros::ServiceServer moveSS = nh.advertiseService("wsg_50/move", moveSrv);
+	ros::ServiceServer moveIncrementallySS = nh.advertiseService("wsg_50/move_incrementally", moveIncrementallySrv);
+	ros::ServiceServer homingSS = nh.advertiseService("wsg_50/homing", homingSrv);
+	ros::ServiceServer graspSS = nh.advertiseService("wsg_50/grasp", graspSrv);
+	
 	vel_pub_r_ = nh.advertise<std_msgs::Float64>("/wsg_50_gr/command", 1000);
-    	vel_pub_l_ = nh.advertise<std_msgs::Float64>("/wsg_50_gl/command", 1000);
+    vel_pub_l_ = nh.advertise<std_msgs::Float64>("/wsg_50_gl/command", 1000);
 	
 	ros::spin();
 	
