@@ -1,0 +1,11 @@
+<stack>
+  <description brief="Software to control the WSG 50 gripper.">
+	Driver for ROS to control the WSG 50 gripper, both in simulated and real version (using TCP or CAN protocol). Part of this driver is based on the original standalone driver for TCP developed by Weiss Robotics.
+  </description>
+  <author>Robotnik Automation SLL</author>
+  <license>BSD</license>
+  <review status="unreviewed" notes=""/>
+  <url>http://ros.org/wiki/wsg50-ros-pkg</url>
+  <depend stack="ros"/>
+</stack>
+

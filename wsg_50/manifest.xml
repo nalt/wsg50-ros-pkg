@@ -11,9 +11,7 @@
   <depend package="roscpp"/>
   <depend package="std_srvs"/>
   <depend package="std_msgs"/>
-  <export>
-    <cpp cflags="-I${prefix}/include  -I${prefix}/msg_gen/cpp/include -I${prefix}/srv_gen/cpp/include"/>
-  </export>
+  <depend package="wsg_50_common"/>
 
 </package>
 

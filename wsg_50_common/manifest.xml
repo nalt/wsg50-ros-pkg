@@ -1,0 +1,18 @@
+<package>
+  <description brief="wsg_50_common">
+
+     Define the msg and srv used both in simulation and real version of the gripper.
+
+  </description>
+  <author>Robotnik Automation SLL</author>
+  <license>BSD</license>
+  <review status="unreviewed" notes=""/>
+  <url>http://ros.org/wiki/wsg_50_common</url>
+  <export>
+    <cpp cflags="-I${prefix}/include  -I${prefix}/msg_gen/cpp/include -I${prefix}/srv_gen/cpp/include"/>
+  </export>
+
+
+</package>
+
+

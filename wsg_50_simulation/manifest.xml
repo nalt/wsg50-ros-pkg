@@ -9,7 +9,7 @@
   <depend package="urdf"/>
   <depend package="std_msgs" />
   <depend package="std_srvs" />
-  <depend package="wsg_50" />
+  <depend package="wsg_50_common" />
 </package>
 
 

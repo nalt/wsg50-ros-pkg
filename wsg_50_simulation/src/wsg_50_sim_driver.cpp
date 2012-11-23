@@ -31,8 +31,8 @@
  */
 
 #include <ros/ros.h>
-#include <wsg_50/Move.h>
-#include <wsg_50/Incr.h>
+#include <wsg_50_common/Move.h>
+#include <wsg_50_common/Incr.h>
 #include <std_msgs/Float64.h>
 #include <std_srvs/Empty.h>
 
@@ -59,7 +59,7 @@ void move(double width){
 	
 }
 
-bool moveSrv(wsg_50::Move::Request &req, wsg_50::Move::Response &res)
+bool moveSrv(wsg_50_common::Move::Request &req, wsg_50_common::Move::Response &res)
 {
 	if ( req.width >= 0.0 && req.width <= 110.0 ){
   		ROS_INFO("Moving to %f position.", req.width);
@@ -74,7 +74,7 @@ bool moveSrv(wsg_50::Move::Request &req, wsg_50::Move::Response &res)
   	return true;
 }
 
-bool moveIncrementallySrv(wsg_50::Incr::Request &req, wsg_50::Incr::Response &res)
+bool moveIncrementallySrv(wsg_50_common::Incr::Request &req, wsg_50_common::Incr::Response &res)
 {
 				
 	if (req.direction == "open"){
@@ -113,7 +113,7 @@ bool homingSrv(std_srvs::Empty::Request &req, std_srvs::Empty::Request &res)
 	return true;
 }
 
-bool graspSrv(wsg_50::Move::Request &req, wsg_50::Move::Request &res)
+bool graspSrv(wsg_50_common::Move::Request &req, wsg_50_common::Move::Request &res)
 {
 	ROS_INFO("Grasping...");
 	
