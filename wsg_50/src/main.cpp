@@ -230,11 +230,13 @@ int main( int argc, char **argv )
    ros::init(argc, argv, "wsg_50");
 
    ros::NodeHandle nh;
+   std::string ip;
+   int port;
 
    ROS_INFO("WSG 50 - ROS NODE");
 
-   nh.param("wsg_50/ip", ip, std::string("192.168.1.20"));
-   nh.param("wsg_50/port", port, 1000);
+   nh.param("wsg_50_tcp/ip", ip, std::string("192.168.1.20"));
+   nh.param("wsg_50_tcp/port", port, 1000);
 
    // Connect to device using TCP
    if( cmd_connect_tcp( ip.c_str(), port ) == 0 )
