@@ -1,0 +1,10 @@
+<?xml version="1.0"?>
+<launch>
+
+  <node  name="wsg_50_tcp"  pkg="wsg_50" type="wsg_50_tcp">
+	<param name="ip" type="string" value="192.168.1.20"/>
+	<param name="port" type="int" value="1000"/>
+  </node>
+
+</launch>
+
