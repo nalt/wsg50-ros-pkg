@@ -1,0 +1,7 @@
+wsg_50_gl_powerball:
+  type: robot_mechanism_controllers/JointPositionController
+  joint: wsg_50_powerball_base_joint_gripper_left
+  pid:
+    p: 100.0
+    d: 10.0
+

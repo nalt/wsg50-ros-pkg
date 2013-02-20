@@ -39,6 +39,8 @@
 #define GRIPPER_MAX_OPEN 110.0
 #define GRIPPER_MIN_OPEN 0.0
 
+using namespace std;
+
 ros::Publisher vel_pub_r_, vel_pub_l_;
 ros::ServiceClient moveSC;
 double currentOpenning;
@@ -129,16 +131,22 @@ int main(int argc, char** argv){
 	
 	ros::init(argc, argv, "wsg_50_sim_driver");
 
-	ros::NodeHandle nh;
+	ros::NodeHandle nh("~");
+	
+	std::string vel_pub_l_Topic, vel_pub_r_Topic;
+	
+	nh.param<std::string>("vel_pub_l_Topic", vel_pub_l_Topic, "/wsg_50_gl/command");
+	nh.param<std::string>("vel_pub_r_Topic", vel_pub_r_Topic, "/wsg_50_gr/command");
+	
     currentOpenning = 0.0;
 	
-	ros::ServiceServer moveSS = nh.advertiseService("wsg_50/move", moveSrv);
-	ros::ServiceServer moveIncrementallySS = nh.advertiseService("wsg_50/move_incrementally", moveIncrementallySrv);
-	ros::ServiceServer homingSS = nh.advertiseService("wsg_50/homing", homingSrv);
-	ros::ServiceServer graspSS = nh.advertiseService("wsg_50/grasp", graspSrv);
+	ros::ServiceServer moveSS = nh.advertiseService("move", moveSrv);
+	ros::ServiceServer moveIncrementallySS = nh.advertiseService("move_incrementally", moveIncrementallySrv);
+	ros::ServiceServer homingSS = nh.advertiseService("homing", homingSrv);
+	ros::ServiceServer graspSS = nh.advertiseService("grasp", graspSrv);
 	
-	vel_pub_r_ = nh.advertise<std_msgs::Float64>("/wsg_50_gr/command", 1000);
-    vel_pub_l_ = nh.advertise<std_msgs::Float64>("/wsg_50_gl/command", 1000);
+	vel_pub_l_ = nh.advertise<std_msgs::Float64>(vel_pub_l_Topic, 1000);
+	vel_pub_r_ = nh.advertise<std_msgs::Float64>(vel_pub_r_Topic, 1000);
 	
 	ros::spin();
 	
