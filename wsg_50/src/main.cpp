@@ -54,6 +54,8 @@
 #include "wsg_50_common/Conf.h"
 #include "wsg_50_common/Incr.h"
 
+#include "sensor_msgs/JointState.h"
+
 
 //------------------------------------------------------------------------
 // Local macros
@@ -259,6 +261,7 @@ int main( int argc, char **argv )
 
 	// Publisher
   	ros::Publisher state_pub = nh.advertise<wsg_50_common::Status>("wsg_50/status", 1000);
+    ros::Publisher joint_states_pub = nh.advertise<sensor_msgs::JointState>("/joint_states", 10);
 
 	ROS_INFO("Ready to use.");
 
@@ -289,7 +292,29 @@ int main( int argc, char **argv )
 		status_msg.acc = acc;
 		status_msg.force = force;
 
-		state_pub.publish(status_msg);
+		 state_pub.publish(status_msg);
+		             
+	  sensor_msgs::JointState joint_states;
+
+    joint_states.header.stamp = ros::Time::now();;
+ 	  joint_states.header.frame_id = "wsg_50_gripper_base_link";
+ 
+		joint_states.name.push_back("wsg_50_gripper_base_joint_gripper_left");
+		joint_states.name.push_back("wsg_50_gripper_base_joint_gripper_right");
+
+ 		joint_states.position.resize(2);
+		joint_states.position[0] = -op/2000.0;
+		joint_states.position[1] = op/2000.0;
+
+		//joint_states.velocity.resize(2);		
+		//joint_states.velocity[0];
+		//joint_states.velocity[1];
+ 		
+		joint_states.effort.resize(2);
+		joint_states.effort[0] = force;
+		joint_states.effort[1] = force;
+		
+		joint_states_pub.publish(joint_states);
 		loop_rate.sleep();
 		ros::spinOnce();
 	}
