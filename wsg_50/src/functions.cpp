@@ -129,7 +129,7 @@ int homing( void )
 }
 
 
-int move( float width, float speed )
+int move( float width, float speed, bool stop_on_block )
 {
 
 	status_t status;
@@ -139,7 +139,8 @@ int move( float width, float speed )
 	unsigned int resp_len;
 
 	// Set flags: Absolute movement (bit 0 is 0), stop on block (bit 1 is 1).
-	payload[0] = 0x02;
+	payload[0] = 0x00;
+	if (stop_on_block) payload[0] |= 0x02;
 
 	// Copy target width and speed
 	memcpy( &payload[1], &width, sizeof( float ) );

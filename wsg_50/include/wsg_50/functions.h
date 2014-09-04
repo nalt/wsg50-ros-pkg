@@ -58,7 +58,7 @@ extern "C" {
 //------------------------------------------------------------------------
 
 int homing( void );
-int move( float width, float speed );
+int move( float width, float speed, bool stop_on_block );
 int stop( void );
 int grasp( float objWidth, float speed );
 int release( float width, float speed );

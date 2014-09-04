@@ -95,14 +95,14 @@ bool moveSrv(wsg_50_common::Move::Request &req, wsg_50_common::Move::Response &r
 {
 	if ( (req.width >= 0.0 && req.width <= 110.0) && (req.speed > 0.0 && req.speed <= 420.0) ){
   		ROS_INFO("Moving to %f position at %f mm/s.", req.width, req.speed);
-		res.error = move(req.width, req.speed);
+		res.error = move(req.width, req.speed, false);
 	}else if (req.width < 0.0 || req.width > 110.0){
 		ROS_ERROR("Imposible to move to this position. (Width values: [0.0 - 110.0] ");
 		res.error = 255;
 		return false;
 	}else{
 	        ROS_WARN("Speed values are outside the gripper's physical limits ([0.1 - 420.0])  Using clamped values.");
-		res.error = move(req.width, req.speed);
+		res.error = move(req.width, req.speed, false);
 	}
 
 	ROS_INFO("Target position reached.");
@@ -138,11 +138,11 @@ bool incrementSrv(wsg_50_common::Incr::Request &req, wsg_50_common::Incr::Respon
 			float nextWidth = currentWidth + req.increment;
 			if ( (currentWidth < GRIPPER_MAX_OPEN) && nextWidth < GRIPPER_MAX_OPEN ){
 				//grasp(nextWidth, 1);
-				move(nextWidth,20);
+				move(nextWidth,20, true);
 				currentWidth = nextWidth;
 			}else if( nextWidth >= GRIPPER_MAX_OPEN){
 				//grasp(GRIPPER_MAX_OPEN, 1);
-				move(GRIPPER_MAX_OPEN,1);
+				move(GRIPPER_MAX_OPEN,1, true);
 				currentWidth = GRIPPER_MAX_OPEN;
 			}
 		}else{
@@ -159,11 +159,11 @@ bool incrementSrv(wsg_50_common::Incr::Request &req, wsg_50_common::Incr::Respon
 		
 			if ( (currentWidth > GRIPPER_MIN_OPEN) && nextWidth > GRIPPER_MIN_OPEN ){
 				//grasp(nextWidth, 1);
-				move(nextWidth,20);
+				move(nextWidth,20, true);
 				currentWidth = nextWidth;
 			}else if( nextWidth <= GRIPPER_MIN_OPEN){
 				//grasp(GRIPPER_MIN_OPEN, 1);
-				move(GRIPPER_MIN_OPEN,1);
+				move(GRIPPER_MIN_OPEN,1, true);
 				currentWidth = GRIPPER_MIN_OPEN;
 			}
 		}
