@@ -279,9 +279,9 @@ int main( int argc, char **argv )
 		//Get state values
 		const char * aux;
 		aux = systemState();
-		int op = getOpening();
+		float op = getOpening();
 		int acc = getAcceleration();
-		int force = getGraspingForceLimit();
+		float force = getForce();//getGraspingForce();
 
     	std::stringstream ss;
 		

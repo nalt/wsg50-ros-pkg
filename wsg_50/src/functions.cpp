@@ -460,7 +460,7 @@ int graspingState( void )
 }
 
 
-int getOpening( void )  
+float getOpening( void )  
 {
 	status_t status;
 	int res;
@@ -505,7 +505,7 @@ int getOpening( void )
 }
 
 
-int getForce( void )  
+float getForce( void )  
 {
 	status_t status;
 	int res;

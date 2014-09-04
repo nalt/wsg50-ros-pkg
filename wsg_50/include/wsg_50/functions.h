@@ -69,8 +69,8 @@ int setGraspingForceLimit( float force );
 
 const char * systemState( void );
 int graspingState( void );
-int getOpening( void );
-int getForce( void );
+float getOpening( void );
+float getForce( void );
 int getAcceleration( void );
 int getGraspingForceLimit( void );
 
