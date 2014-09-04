@@ -231,14 +231,14 @@ int main( int argc, char **argv )
 {
    ros::init(argc, argv, "wsg_50");
 
-   ros::NodeHandle nh;
+   ros::NodeHandle nh("~");
    std::string ip;
    int port;
 
-   ROS_INFO("WSG 50 - ROS NODE");
+   nh.param("ip", ip, std::string("192.168.1.20"));
+   nh.param("port", port, 1000);
 
-   nh.param("wsg_50_tcp/ip", ip, std::string("192.168.1.20"));
-   nh.param("wsg_50_tcp/port", port, 1000);
+   ROS_INFO("Connecting to %s...", ip.c_str());
 
    // Connect to device using TCP
    if( cmd_connect_tcp( ip.c_str(), port ) == 0 )
@@ -247,20 +247,20 @@ int main( int argc, char **argv )
 	ROS_INFO("TCP connection stablished");
 
 	// Services
-  	ros::ServiceServer moveSS = nh.advertiseService("wsg_50/move", moveSrv);
-  	ros::ServiceServer graspSS = nh.advertiseService("wsg_50/grasp", graspSrv);
-  	ros::ServiceServer releaseSS = nh.advertiseService("wsg_50/release", releaseSrv);
-  	ros::ServiceServer homingSS = nh.advertiseService("wsg_50/homing", homingSrv);
-  	ros::ServiceServer stopSS = nh.advertiseService("wsg_50/stop", stopSrv);
-  	ros::ServiceServer ackSS = nh.advertiseService("wsg_50/ack", ackSrv);
+  	ros::ServiceServer moveSS = nh.advertiseService("move", moveSrv);
+  	ros::ServiceServer graspSS = nh.advertiseService("grasp", graspSrv);
+  	ros::ServiceServer releaseSS = nh.advertiseService("release", releaseSrv);
+  	ros::ServiceServer homingSS = nh.advertiseService("homing", homingSrv);
+  	ros::ServiceServer stopSS = nh.advertiseService("stop", stopSrv);
+  	ros::ServiceServer ackSS = nh.advertiseService("ack", ackSrv);
 	
-	ros::ServiceServer incrementSS = nh.advertiseService("wsg_50/move_incrementally", incrementSrv);
+	ros::ServiceServer incrementSS = nh.advertiseService("move_incrementally", incrementSrv);
 
-	ros::ServiceServer setAccSS = nh.advertiseService("wsg_50/set_acceleration", setAccSrv);
-	ros::ServiceServer setForceSS = nh.advertiseService("wsg_50/set_force", setForceSrv);
+	ros::ServiceServer setAccSS = nh.advertiseService("set_acceleration", setAccSrv);
+	ros::ServiceServer setForceSS = nh.advertiseService("set_force", setForceSrv);
 
 	// Publisher
-  	ros::Publisher state_pub = nh.advertise<wsg_50_common::Status>("wsg_50/status", 1000);
+  	ros::Publisher state_pub = nh.advertise<wsg_50_common::Status>("status", 1000);
     ros::Publisher joint_states_pub = nh.advertise<sensor_msgs::JointState>("/joint_states", 10);
 
 	ROS_INFO("Ready to use.");
