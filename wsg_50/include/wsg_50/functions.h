@@ -27,6 +27,8 @@
 #ifndef FUNCTIONS_H_
 #define FUNCTIONS_H_
 
+ #include <string>
+
 //------------------------------------------------------------------------
 // Includes
 //------------------------------------------------------------------------
@@ -38,14 +40,20 @@
 
 
 
-#ifdef __cplusplus
+/*#ifdef __cplusplus
 extern "C" {
-#endif
+#endif */
 
 //------------------------------------------------------------------------
 // Typedefs, enums, structs
 //------------------------------------------------------------------------
-
+typedef struct {
+	unsigned int state;
+	bool ismoving;
+	float position, speed;
+	float f_motor, f_finger0, f_finger1;
+	std::string state_text;
+} gripper_response;
 
 //------------------------------------------------------------------------
 // Global variables
@@ -74,13 +82,15 @@ float getForce( void );
 int getAcceleration( void );
 int getGraspingForceLimit( void );
 
+int measure_move (unsigned char cmd_type, float cmd_width, float cmd_speed, gripper_response & info);
+
 //void getStateValues(); //(unsigned char *);
 
 //void test( void );
 
 
-#ifdef __cplusplus
+/*#ifdef __cplusplus
 }
-#endif
+#endif */
 
 #endif /* FUNCTIONS_H_ */

@@ -51,6 +51,8 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <cmath>
+#include <string>
 
 #include "wsg_50/common.h"
 #include "wsg_50/cmd.h"
@@ -301,6 +303,74 @@ int release( float width, float speed )
 
 	return 0;
 }
+
+
+// Custom script: Command-and-measure
+// cmd_type:	0 - read only; 1 - position control; 2 - speed control
+int measure_move (unsigned char cmd_type, float cmd_width, float cmd_speed, gripper_response & info)
+{
+	status_t status;
+	int res;
+	const unsigned char CMD_CUSTOM = 0xB0;
+	unsigned char payload[9];
+	unsigned char *resp;
+	unsigned int resp_len;
+
+	// Custom payload format:
+	// 0:	Unused
+	// 1:	float, target width, used for 0xB1 command
+	// 5:	float, target speed, used for 0xB1 and 0xB2 command
+	payload[0] = 0x00;
+	memcpy(&payload[1], &cmd_width, sizeof(float));
+	memcpy(&payload[5], &cmd_speed, sizeof(float));
+
+	// Submit command and process result
+	res = cmd_submit(CMD_CUSTOM + cmd_type, payload, 9, true, &resp, &resp_len );
+	try {
+		if (res < 2)
+			throw std::string("Invalid Response");
+		status = cmd_get_response_status(resp);
+		if (status == E_CMD_UNKNOWN)
+			throw std::string("Command unknown - make sure script is running");
+		if (status != E_SUCCESS)
+			throw std::string("Command failed");
+		if (res != 23)
+			throw std::string("Response payload incorrect (" + std::to_string(res) + ")");
+
+		// Extract data from response
+		int off=2;
+		unsigned char resp_state[6] = {0,0,0,0,0,0};
+		resp_state[2] = resp[2];
+		info.state = resp[2];					 off+=1;
+		info.state_text = std::string(getStateValues(resp_state));
+		info.position = convert(&resp[off]);     off+=4;
+		info.speed = convert(&resp[off]);        off+=4;
+		info.f_motor = convert(&resp[off]);      off+=4;
+		info.f_finger0 = convert(&resp[off]);    off+=4;
+		info.f_finger1 = convert(&resp[off]);    off+=4;
+
+
+		info.ismoving = (info.state & 0x02/*fingers mnoving*/) != 0;
+		// only in position mode; cannot determine reliably for velocity mode
+		// 0x40 /* axis stopped */
+
+		if (0)
+			printf("Received: %02X, %6.2f,%6.2f,%6.2f,%6.2f,%6.2f\n  %s\n",
+				info.state, info.position, info.speed, info.f_motor, info.f_finger0, info.f_finger1,
+				info.state_text.c_str());
+
+	} catch (std::string msg) {
+		msg = "measure_move: " + msg + "\n";
+		dbgPrintPlain( msg.c_str() );
+		if (res > 0) free(resp);
+		return 0;
+	}
+
+
+	free( resp );
+	return 1;
+}
+
 
 
 ///////////////////

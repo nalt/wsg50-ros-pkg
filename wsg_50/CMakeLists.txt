@@ -56,15 +56,16 @@ set(DRIVER_SOURCES_CAN
   src/msg.c)
 
 #rosbuild_add_executable(wsg_50_can src/main_can.cpp src/checksum.cpp src/msg.c src/common.cpp src/functions_can.cpp)
-rosbuild_add_executable(wsg_50_can src/main_can.cpp ${DRIVER_SOURCES_CAN})
+#rosbuild_add_executable(wsg_50_can src/main_can.cpp ${DRIVER_SOURCES_CAN})
 
 add_definitions(-DOSNAME_LINUX)
+add_definitions(-std=c++0x)
 
 include_directories(/home/marc/peak-linux-driver-7.5/driver/src/)
 link_directories(/home/marc/peak-linux-driver-7.5/lib/)
 
-rosbuild_add_compile_flags(wsg_50_can -g -Wall)
+#rosbuild_add_compile_flags(wsg_50_can -g -Wall)
 
-target_link_libraries(wsg_50_can pcan)
+#target_link_libraries(wsg_50_can pcan)
 
 

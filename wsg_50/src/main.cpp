@@ -48,13 +48,16 @@
 
 #include <ros/ros.h>
 #include "std_msgs/String.h"
+#include "std_srvs/Empty.h"
 #include "wsg_50_common/Status.h"
 #include "wsg_50_common/Move.h"
-#include "std_srvs/Empty.h"
 #include "wsg_50_common/Conf.h"
 #include "wsg_50_common/Incr.h"
+#include "wsg_50_common/Cmd.h"
 
 #include "sensor_msgs/JointState.h"
+#include "std_msgs/Float32.h"
+#include "std_msgs/Bool.h"
 
 
 //------------------------------------------------------------------------
@@ -75,6 +78,11 @@
 
 float increment;
 bool objectGraspped;
+
+int g_timer_cnt = 0;
+ros::Publisher g_pub_state, g_pub_joint, g_pub_moving;
+bool g_ismoving = false, g_use_script = false;
+float g_goal_position = NAN, g_goal_speed = NAN, g_speed = 10.0;
    
 //------------------------------------------------------------------------
 // Unit testing
@@ -168,6 +176,7 @@ bool incrementSrv(wsg_50_common::Incr::Request &req, wsg_50_common::Incr::Respon
 			}
 		}
 	}
+	return true;
 }
 
 bool releaseSrv(wsg_50_common::Move::Request &req, wsg_50_common::Move::Response &res)
@@ -222,6 +231,90 @@ bool ackSrv(std_srvs::Empty::Request &req, std_srvs::Empty::Request &res)
 }
 
 
+void timer_cb(const ros::TimerEvent& ev)
+{
+	// ==== Get state values by built-in commands ====
+	gripper_response info;
+	float acc = 0.0;
+	info.speed = 0.0;
+
+	if (!g_use_script) {
+		info.state_text = std::string(systemState());
+		info.position = getOpening();
+		acc = getAcceleration();
+		info.f_motor = getForce();//getGraspingForce();
+
+	} else {
+		// ==== Call custom measure-and-move command ====
+		int res = 0;
+		if (!isnan(g_goal_position)) {
+			ROS_INFO("Position command: pos=%5.1f, speed=%5.1f", g_goal_position, g_speed);
+			res = measure_move(1, g_goal_position, g_speed, info);
+		} else if (!isnan(g_goal_speed)) {
+			ROS_INFO("Velocity command: speed=%5.1f", g_goal_speed);
+			res = measure_move(2, 0, g_goal_speed, info);
+		} else
+			res = measure_move(0, 0, 0, info);
+		if (!isnan(g_goal_position))
+			g_goal_position = NAN;
+		if (!isnan(g_goal_speed))
+			g_goal_speed = NAN;
+
+		if (!res) {
+			ROS_ERROR("Measure-and-move command failed");
+			return;
+		}
+
+		// ==== Moving msg ====
+		if (g_ismoving != info.ismoving) {
+			std_msgs::Bool moving_msg;
+			moving_msg.data = info.ismoving;
+			g_pub_moving.publish(moving_msg);
+			g_ismoving = info.ismoving;
+		}
+	}
+
+	// ==== Status msg ====
+	wsg_50_common::Status status_msg;
+	status_msg.status = info.state_text;
+	status_msg.width = info.position;
+	status_msg.speed = info.speed;
+	status_msg.acc = acc;
+	status_msg.force = info.f_motor;
+	status_msg.force_finger0 = info.f_finger0;
+	status_msg.force_finger1 = info.f_finger1;
+
+	g_pub_state.publish(status_msg);
+             
+
+	// ==== Joint state msg ====
+	sensor_msgs::JointState joint_states;
+	joint_states.header.stamp = ros::Time::now();;
+	joint_states.header.frame_id = "wsg_50_gripper_base_link";
+		joint_states.name.push_back("wsg_50_gripper_base_joint_gripper_left");
+	joint_states.name.push_back("wsg_50_gripper_base_joint_gripper_right");
+		joint_states.position.resize(2);
+
+	joint_states.position[0] = -info.position/2000.0;
+	joint_states.position[1] = info.position/2000.0;
+	joint_states.velocity.resize(2);		
+	joint_states.velocity[0] = info.speed;
+	joint_states.velocity[1] = info.speed;
+	joint_states.effort.resize(2);
+	joint_states.effort[0] = info.f_motor;
+	joint_states.effort[1] = info.f_motor;
+	
+	g_pub_joint.publish(joint_states);
+
+	// printf("Timer, last duration: %6.1f\n", ev.profile.last_duration.toSec() * 1000.0);
+}
+
+void position_cb(const wsg_50_common::Cmd::ConstPtr& msg)
+{ g_speed = msg->speed; g_goal_position = msg->pos; }
+
+
+void speed_cb(const std_msgs::Float32::ConstPtr& msg)
+{ g_goal_speed = msg->data; g_speed = msg->data; }
 
 /**
  * The main function
@@ -234,102 +327,63 @@ int main( int argc, char **argv )
    ros::NodeHandle nh("~");
    std::string ip;
    int port;
+   double rate, grasping_force;
 
    nh.param("ip", ip, std::string("192.168.1.20"));
    nh.param("port", port, 1000);
+   nh.param("use_script", g_use_script, false);
+   nh.param("rate", rate, 1.0); // With custom script, up to 30Hz are possible
+   nh.param("grasping_force", grasping_force, 0.0);
 
    ROS_INFO("Connecting to %s...", ip.c_str());
 
    // Connect to device using TCP
    if( cmd_connect_tcp( ip.c_str(), port ) == 0 )
    {
+		ROS_INFO("TCP connection stablished");
 
-	ROS_INFO("TCP connection stablished");
+		// Services
+		ros::ServiceServer moveSS = nh.advertiseService("move", moveSrv);
+		ros::ServiceServer graspSS = nh.advertiseService("grasp", graspSrv);
+		ros::ServiceServer releaseSS = nh.advertiseService("release", releaseSrv);
+		ros::ServiceServer homingSS = nh.advertiseService("homing", homingSrv);
+		ros::ServiceServer stopSS = nh.advertiseService("stop", stopSrv);
+		ros::ServiceServer ackSS = nh.advertiseService("ack", ackSrv);
+		ros::ServiceServer incrementSS = nh.advertiseService("move_incrementally", incrementSrv);
 
-	// Services
-  	ros::ServiceServer moveSS = nh.advertiseService("move", moveSrv);
-  	ros::ServiceServer graspSS = nh.advertiseService("grasp", graspSrv);
-  	ros::ServiceServer releaseSS = nh.advertiseService("release", releaseSrv);
-  	ros::ServiceServer homingSS = nh.advertiseService("homing", homingSrv);
-  	ros::ServiceServer stopSS = nh.advertiseService("stop", stopSrv);
-  	ros::ServiceServer ackSS = nh.advertiseService("ack", ackSrv);
-	
-	ros::ServiceServer incrementSS = nh.advertiseService("move_incrementally", incrementSrv);
+		ros::ServiceServer setAccSS = nh.advertiseService("set_acceleration", setAccSrv);
+		ros::ServiceServer setForceSS = nh.advertiseService("set_force", setForceSrv);
 
-	ros::ServiceServer setAccSS = nh.advertiseService("set_acceleration", setAccSrv);
-	ros::ServiceServer setForceSS = nh.advertiseService("set_force", setForceSrv);
+		// Subscriber
+		ros::Subscriber sub_position = nh.subscribe("goal_position", 5, position_cb);
+		ros::Subscriber sub_speed = nh.subscribe("goal_speed", 5, speed_cb);
 
-	// Publisher
-  	ros::Publisher state_pub = nh.advertise<wsg_50_common::Status>("status", 1000);
-    ros::Publisher joint_states_pub = nh.advertise<sensor_msgs::JointState>("/joint_states", 10);
+		// Publisher
+		g_pub_state = nh.advertise<wsg_50_common::Status>("status", 1000);
+		g_pub_joint = nh.advertise<sensor_msgs::JointState>("/joint_states", 10);
+		g_pub_moving = nh.advertise<std_msgs::Bool>("moving", 10);
 
-	ROS_INFO("Ready to use.");
+		ROS_INFO("Ready to use, homing now...");
+		homing();
 
-	homing();
+		if (grasping_force > 0.0) {
+			ROS_INFO("Setting grasping force limit to %5.1f", grasping_force);
+			setGraspingForceLimit(grasping_force);
+		}
 
-	ros::Rate loop_rate(1); // loop at 1Hz
+		ROS_INFO("Target rate %.1f, using custom script: %s", rate, (g_use_script)? "yes":"no");
+		ros::Timer t = nh.createTimer(ros::Duration(1.0/rate), timer_cb);
+		ros::spin();
 
-	while( ros::ok() ){
-
-		//Loop waiting for orders and updating the state
-		
-		//Create the msg to send
-		wsg_50_common::Status status_msg;		
-
-		//Get state values
-		const char * aux;
-		aux = systemState();
-		float op = getOpening();
-		int acc = getAcceleration();
-		float force = getForce();//getGraspingForce();
-
-    	std::stringstream ss;
-		
-		ss << aux;
-
-		status_msg.status = ss.str();
-		status_msg.width = op;
-		status_msg.acc = acc;
-		status_msg.force = force;
-
-		 state_pub.publish(status_msg);
-		             
-	  sensor_msgs::JointState joint_states;
-
-    joint_states.header.stamp = ros::Time::now();;
- 	  joint_states.header.frame_id = "wsg_50_gripper_base_link";
- 
-		joint_states.name.push_back("wsg_50_gripper_base_joint_gripper_left");
-		joint_states.name.push_back("wsg_50_gripper_base_joint_gripper_right");
-
- 		joint_states.position.resize(2);
-		joint_states.position[0] = -op/2000.0;
-		joint_states.position[1] = op/2000.0;
-
-		//joint_states.velocity.resize(2);		
-		//joint_states.velocity[0];
-		//joint_states.velocity[1];
- 		
-		joint_states.effort.resize(2);
-		joint_states.effort[0] = force;
-		joint_states.effort[1] = force;
-		
-		joint_states_pub.publish(joint_states);
-		loop_rate.sleep();
-		ros::spinOnce();
+	} else {
+		ROS_ERROR("Unable to connect via TCP, please check the port and address used.");
 	}
 
-   }else{
+	// Disconnect - won't be executed atm. as the endless loop in test()
+	// will never return.
+	cmd_disconnect();
 
-	ROS_ERROR("Unable to connect via TCP, please check the port and address used.");
-	
-   }
-
-   // Disconnect - won't be executed atm. as the endless loop in test()
-   // will never return.
-   cmd_disconnect();
-
-   return 0;
+	return 0;
 
 }
 
