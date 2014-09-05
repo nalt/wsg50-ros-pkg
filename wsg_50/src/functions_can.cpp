@@ -49,7 +49,7 @@
 #include "wsg_50/checksum.h"
 #include "wsg_50/common.h"
 #include "wsg_50/msg.h"
-#include "wsg_50/aux.h"
+#include "wsg_50/aux_.h"
 
 //------------------------------------------------------------------------
 // Support functions
