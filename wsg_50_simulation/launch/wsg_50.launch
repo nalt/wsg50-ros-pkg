@@ -4,13 +4,13 @@
   <param name="/use_sim_time" value="true" />
 
   <!-- start world -->
-  <include file="$(find gazebo_worlds)/launch/empty_world.launch"/>
+  <include file="$(find gazebo_ros)/launch/empty_world.launch"/>
  
   <!-- send wsg_50.urdf to param server -->
   <param name="robot_description" textfile="$(find wsg_50_simulation)/urdf/wsg_50.urdf" />
 
   <!-- push gripper_description to factory and spawn the gripper in gazebo -->
-  <node name="spawn_gripper" pkg="gazebo" type="spawn_model" args="-urdf -param robot_description -x 0 -y 0 -z 0.35 -model wsg_50" respawn="false" output="screen"/>
+  <node name="spawn_gripper" pkg="gazebo_ros" type="spawn_model" args="-urdf -param robot_description -x 0 -y 0 -z 0.35 -model wsg_50" respawn="false" output="screen"/>
 
   <!-- Launch the joint controller -->
   <include file="$(find wsg_50_simulation)/launch/wsg_50_controllers.launch"/>

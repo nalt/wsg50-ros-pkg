@@ -1,0 +1,15 @@
+<launch>
+  <arg name="com_mode" default="script" />
+
+  <node  name="wsg_50_driver"  pkg="wsg_50_driver" type="wsg_50_ip" output="screen">
+	  <param name="ip" type="string" value="192.168.20.2"/>
+	  <param name="port" type="int" value="1500"/>
+	  <param name="local_port" type="int" value="5501"/>
+    <param name="protocol" type="string" value="udp"/>
+    <param name="com_mode" type="string" value="$(arg com_mode)"/>
+    <param name="rate" type="double" value="50"/>
+    <param name="grasping_force" type="double" value="80"/>
+  </node>
+
+</launch>
+
