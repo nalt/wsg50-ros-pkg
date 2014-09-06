@@ -290,9 +290,6 @@ const char * getStateValues( unsigned char *b ){
 
 	//dbgPrint("%s\n", resp);
 	return resp;
-
-
-
 }
 
 

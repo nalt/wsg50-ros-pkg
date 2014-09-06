@@ -56,6 +56,7 @@
 
 #include "wsg_50/common.h"
 #include "wsg_50/cmd.h"
+#include "wsg_50/msg.h"
 #include "wsg_50/functions.h"
 
 //------------------------------------------------------------------------
@@ -131,7 +132,10 @@ int homing( void )
 }
 
 
-int move( float width, float speed, bool stop_on_block )
+/** \brief  Send move command (0x21) to gripper
+ *  \param  ignore_response Do not read back response from gripper. (Must be read elsewhere, for auto update.)
+ */
+int move( float width, float speed, bool stop_on_block, bool ignore_response)
 {
 
 	status_t status;
@@ -148,29 +152,40 @@ int move( float width, float speed, bool stop_on_block )
 	memcpy( &payload[1], &width, sizeof( float ) );
 	memcpy( &payload[5], &speed, sizeof( float ) );
 
-	// Submit command and wait for response. Push result to stack.
-	res = cmd_submit( 0x21, payload, 9, true, &resp, &resp_len );
-	if ( res != 2 )
-	{
-		dbgPrint( "Response payload length doesn't match (is %d, expected 2)\n", res );
-		if ( res > 0 ) free( resp );
-		return 0;
-	}
+    if (!ignore_response) {
+        // Submit command and wait for response. Push result to stack.
+        res = cmd_submit( 0x21, payload, 9, true, &resp, &resp_len );
+        if ( res != 2 )
+        {
+            dbgPrint( "Response payload length doesn't match (is %d, expected 2)\n", res );
+            if ( res > 0 ) free( resp );
+            return 0;
+        }
 
-	// Check response status
-	status = cmd_get_response_status( resp );
-	free( resp );
-	if ( status != E_SUCCESS )
-	{
-		dbgPrint( "Command MOVE not successful: %s\n", status_to_str( status ) );
-		return -1;
-	}
+        // Check response status
+        status = cmd_get_response_status( resp );
+        free( resp );
+        if ( status != E_SUCCESS )
+        {
+            dbgPrint( "Command MOVE not successful: %s\n", status_to_str( status ) );
+            return -1;
+        }
+    } else {
+        // Submit command, do not wait for response
+        msg_t msg;
+        msg.id = 0x21; msg.len = 9; msg.data = &payload[0];
+        res = msg_send(&msg);
+        if (res <= 0) {
+            dbgPrint("Failed to send command MOVE\n");
+            return -1;
+        }
+    }
 
 	return 0;
 }
 
 
-int stop( void )
+int stop( bool ignore_response )
 {
 	status_t status;
 	int res;
@@ -180,25 +195,36 @@ int stop( void )
 
 	//payload[0] = 0x00;
 
-	// Submit command and wait for response. Push result to stack.
-	res = cmd_submit( 0x22, payload, 0, true, &resp, &resp_len );
-	if ( res != 2 )
-	{
-		dbgPrint( "Response payload length doesn't match (is %d, expected 2)\n", res );
-		if ( res > 0 ) free( resp );
-		return 0;
-	}
+    if (!ignore_response) {
+        // Submit command and wait for response. Push result to stack.
+        res = cmd_submit( 0x22, payload, 0, true, &resp, &resp_len );
+        if ( res != 2 )
+        {
+            dbgPrint( "Response payload length doesn't match (is %d, expected 2)\n", res );
+            if ( res > 0 ) free( resp );
+            return 0;
+        }
 
-	// Check response status
-	status = cmd_get_response_status( resp );
-	free( resp );
-	if ( status != E_SUCCESS )
-	{
-		dbgPrint( "Command STOP not successful: %s\n", status_to_str( status ) );
-		return -1;
-	}
+        // Check response status
+        status = cmd_get_response_status( resp );
+        free( resp );
+        if ( status != E_SUCCESS )
+        {
+            dbgPrint( "Command STOP not successful: %s\n", status_to_str( status ) );
+            return -1;
+        }
+    } else {
+        // Submit command, do not wait for response
+        msg_t msg;
+        msg.id = 0x22; msg.len = 0; msg.data = &payload[0];
+        res = msg_send(&msg);
+        if (res <= 0) {
+            dbgPrint("Failed to send command STOP\n");
+            return -1;
+        }
+    }
 
-	return 0;
+    return 0;
 }
 
 
@@ -307,7 +333,7 @@ int release( float width, float speed )
 
 // Custom script: Command-and-measure
 // cmd_type:	0 - read only; 1 - position control; 2 - speed control
-int measure_move (unsigned char cmd_type, float cmd_width, float cmd_speed, gripper_response & info)
+int script_measure_move (unsigned char cmd_type, float cmd_width, float cmd_speed, gripper_response & info)
 {
 	status_t status;
 	int res;
@@ -361,7 +387,7 @@ int measure_move (unsigned char cmd_type, float cmd_width, float cmd_speed, grip
 
 	} catch (std::string msg) {
 		msg = "measure_move: " + msg + "\n";
-		dbgPrintPlain( msg.c_str() );
+        dbgPrint ("%s", msg.c_str());
 		if (res > 0) free(resp);
 		return 0;
 	}
@@ -489,6 +515,8 @@ const char * systemState( void )
 
 	free( resp );
 
+    return 0;
+
 	//return (int) resp[2]; MBJ
 }
 
@@ -530,91 +558,66 @@ int graspingState( void )
 }
 
 
-float getOpening( void )  
+float getOpeningSpeedForce(unsigned char cmd, int auto_update)
 {
-	status_t status;
-	int res;
-	unsigned char payload[3];
-	unsigned char *resp;
-	unsigned int resp_len;
-	unsigned char vResult[4];
+    status_t status;
+    int res;
+    unsigned char payload[3];
+    unsigned char *resp;
+    unsigned int resp_len;
+    std::string names[] = { "opening", "speed", "force", "???" };
 
-	// Don't use automatic update, so the payload bytes are 0.
-	memset( payload, 0, 3 );
+    // Payload = 0, except for auto update
+    memset(payload, 0, 3);
+    if (auto_update > 0) {
+        payload[0] = 0x01;
+        payload[1] = (auto_update & 0xff);
+        payload[2] = ((auto_update & 0xff00) >> 8);
+    }
 
-	// Submit command and wait for response. Expecting exactly 4 bytes response payload.
-	res = cmd_submit( 0x43, payload, 3, false, &resp, &resp_len ); // 0x43
-	if ( res != 6 )
-	{
-		dbgPrint( "Response payload length doesn't match (is %d, expected 3)\n", res );
-		if ( res > 0 ) free( resp );
-		return 0;
-	}
+    // Submit command and wait for response. Expecting exactly 4 bytes response payload.
+    res = cmd_submit(cmd, payload, 3, false, &resp, &resp_len ); // 0x43
+    if (res != 6) {
+        dbgPrint( "Response payload length doesn't match (is %d, expected 3)\n", res );
+        if ( res > 0 ) free( resp );
+        return 0;
+    }
 
-	// Check response status
-	status = cmd_get_response_status( resp );
-	if ( status != E_SUCCESS )
-	{
-		dbgPrint( "Command GET OPENNING not successful: %s\n", status_to_str( status ) );
-		free( resp );
-		return 0;
-	}
+    // Check response status
+    status = cmd_get_response_status( resp );
+    if ( status != E_SUCCESS )	{
+        const char *info = names[3].c_str();
+        if (cmd >= 0x43 && cmd <= 0x45)
+            info = names[cmd-0x43].c_str();
+        dbgPrint( "Command 0x%02X get %s not successful: %s\n", cmd, info, status_to_str( status ) );
+        free( resp );
+        return 0;
+    }
 
-	vResult[0] = resp[2];
-	vResult[1] = resp[3];
-	vResult[2] = resp[4];
-	vResult[3] = resp[5];
-
-	//dbgPrint("OPENING WIDTH: %f mm\n", convert(vResult));
-
-	free( resp );
-
-	return convert(vResult);
-
-	// return (int) resp[2];
+    float r = convert(&resp[2]);
+    free( resp );
+    return r;
 }
 
+/** \brief Read measured opening (width/position) from gripper (0x43).
+ *  \param auto_update Request periodic updates (unit: ms) from the gripper; responses need to be read out elsewhere.
+ */
+float getOpening(int auto_update) {
+    return getOpeningSpeedForce(0x43, auto_update);
+}
 
-float getForce( void )  
-{
-	status_t status;
-	int res;
-	unsigned char payload[3];
-	unsigned char *resp;
-	unsigned int resp_len;
-	unsigned char vResult[4];
+/** \brief Read measured speed from gripper (0x44).
+ *  \param auto_update Request periodic updates (unit: ms) from the gripper; responses need to be read out elsewhere.
+ */
+float getSpeed(int auto_update) {
+    return getOpeningSpeedForce(0x44, auto_update);
+}
 
-	// Don't use automatic update, so the payload bytes are 0.
-	memset( payload, 0, 3 );
-
-	// Submit command and wait for response. Expecting exactly 4 bytes response payload.
-	res = cmd_submit( 0x45, payload, 3, false, &resp, &resp_len ); // 0x43
-	if ( res != 6 )
-	{
-		dbgPrint( "Response payload length doesn't match (is %d, expected 3)\n", res );
-		if ( res > 0 ) free( resp );
-		return 0;
-	}
-
-	// Check response status
-	status = cmd_get_response_status( resp );
-	if ( status != E_SUCCESS )
-	{
-		dbgPrint( "Command GET SPEED not successful: %s\n", status_to_str( status ) );
-		free( resp );
-		return 0;
-	}
-
-	vResult[0] = resp[2];
-	vResult[1] = resp[3];
-	vResult[2] = resp[4];
-	vResult[3] = resp[5];
-
-	free( resp );
-
-	return convert(vResult);
-
-	//return (int) resp[2];
+/** \brief Read measured force from gripper (0x45).
+ *  \param auto_update Request periodic updates (unit: ms) from the gripper; responses need to be read out elsewhere.
+ */
+float getForce(int auto_update){
+    return getOpeningSpeedForce(0x45, auto_update);
 }
 
 

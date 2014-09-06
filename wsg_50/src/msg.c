@@ -167,7 +167,7 @@ int msg_receive( msg_t *msg )
 int msg_send( msg_t *msg )
 {
 	unsigned char header[MSG_PREAMBLE_LEN + 3];
-	unsigned char checksum[2];
+    //unsigned char checksum[2];
 	unsigned short crc;
 	int i, res;
 
@@ -185,8 +185,8 @@ int msg_send( msg_t *msg )
 	crc = checksum_crc16( header, 6 );
 	crc = checksum_update_crc16( msg->data, msg->len, crc );
 
-	checksum[0] = lo( crc );
-	checksum[1] = hi( crc );
+    //checksum[0] = lo( crc );
+    //checksum[1] = hi( crc );
 
 	if ( interface->write )
 	{
@@ -197,7 +197,7 @@ int msg_send( msg_t *msg )
 		memcpy( buf + 6 + msg->len, (unsigned char *) &crc, 2 );
 
 		res = interface->write( buf, 6 + msg->len + 2 );
-		if ( res < 6 + msg->len + 2 )
+        if ( res < 6 + (int)msg->len + 2 )
 		{
 			interface->close();
 			quit( "Failed to submit message checksum" );

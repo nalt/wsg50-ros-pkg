@@ -65,9 +65,10 @@ typedef struct {
 // Function declaration
 //------------------------------------------------------------------------
 
+float convert(unsigned char *b);
 int homing( void );
-int move( float width, float speed, bool stop_on_block );
-int stop( void );
+int move(float width, float speed, bool stop_on_block, bool ignore_response = false);
+int stop( bool ignore_response = false );
 int grasp( float objWidth, float speed );
 int release( float width, float speed );
 int ack_fault( void );
@@ -77,12 +78,13 @@ int setGraspingForceLimit( float force );
 
 const char * systemState( void );
 int graspingState( void );
-float getOpening( void );
-float getForce( void );
+float getOpening(int auto_update = 0);
+float getForce(int auto_update = 0);
+float getSpeed(int auto_update = 0);
 int getAcceleration( void );
 int getGraspingForceLimit( void );
 
-int measure_move (unsigned char cmd_type, float cmd_width, float cmd_speed, gripper_response & info);
+int script_measure_move (unsigned char cmd_type, float cmd_width, float cmd_speed, gripper_response & info);
 
 //void getStateValues(); //(unsigned char *);
 

@@ -33,16 +33,16 @@ rosbuild_gensrv()
 # WSG_50_TCP version
 
 set(DRIVER_SOURCES 
-  src/checksum.cpp
-  src/cmd.c
-  src/common.cpp
-  src/functions.cpp
-  src/interface.cpp
+  src/checksum.cpp include/wsg_50/checksum.h
+  src/cmd.c include/wsg_50/cmd.h
+  src/common.cpp include/wsg_50/common.h
+  src/functions.cpp include/wsg_50/functions.h
+  src/interface.cpp include/wsg_50/interface.h
   src/main.cpp
-  src/msg.c
-  src/serial.c
-  src/tcp.c
-  src/udp.c)
+  src/msg.c include/wsg_50/msg.h
+  src/serial.c include/wsg_50/serial.h
+  src/tcp.c include/wsg_50/tcp.h
+  src/udp.c include/wsg_50/udp.h)
   
 
 rosbuild_add_executable(wsg_50_tcp src/main.cpp ${DRIVER_SOURCES})
@@ -59,13 +59,12 @@ set(DRIVER_SOURCES_CAN
 #rosbuild_add_executable(wsg_50_can src/main_can.cpp ${DRIVER_SOURCES_CAN})
 
 add_definitions(-DOSNAME_LINUX)
-add_definitions(-std=c++0x)
+add_definitions(-g)
+set(CMAKE_CXX_FLAGS ${CMAKE_CXX_FLAGS} "-std=c++0x") # Need C++11
 
-include_directories(/home/marc/peak-linux-driver-7.5/driver/src/)
-link_directories(/home/marc/peak-linux-driver-7.5/lib/)
-
+#include_directories(/home/marc/peak-linux-driver-7.5/driver/src/)
+#link_directories(/home/marc/peak-linux-driver-7.5/lib/)
 #rosbuild_add_compile_flags(wsg_50_can -g -Wall)
-
 #target_link_libraries(wsg_50_can pcan)
 
 

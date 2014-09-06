@@ -37,13 +37,17 @@
 //------------------------------------------------------------------------
 
 
+#include <signal.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <assert.h>
+#include <thread>
+#include <chrono>
 
 #include "wsg_50/common.h"
 #include "wsg_50/cmd.h"
+#include "wsg_50/msg.h"
 #include "wsg_50/functions.h"
 
 #include <ros/ros.h>
@@ -81,7 +85,7 @@ bool objectGraspped;
 
 int g_timer_cnt = 0;
 ros::Publisher g_pub_state, g_pub_joint, g_pub_moving;
-bool g_ismoving = false, g_use_script = false;
+bool g_ismoving = false, g_mode_script = false, g_mode_periodic = false, g_mode_polling = false;
 float g_goal_position = NAN, g_goal_speed = NAN, g_speed = 10.0;
    
 //------------------------------------------------------------------------
@@ -120,7 +124,7 @@ bool moveSrv(wsg_50_common::Move::Request &req, wsg_50_common::Move::Response &r
 bool graspSrv(wsg_50_common::Move::Request &req, wsg_50_common::Move::Response &res)
 {
 	if ( (req.width >= 0.0 && req.width <= 110.0) && (req.speed > 0.0 && req.speed <= 420.0) ){
-  		ROS_INFO("Grasping object at %f mm/s.", req.width, req.speed);
+        ROS_INFO("Grasping object at %f with %f mm/s.", req.width, req.speed);
 		res.error = grasp(req.width, req.speed);
 	}else if (req.width < 0.0 || req.width > 110.0){
 		ROS_ERROR("Imposible to move to this position. (Width values: [0.0 - 110.0] ");
@@ -230,7 +234,30 @@ bool ackSrv(std_srvs::Empty::Request &req, std_srvs::Empty::Request &res)
 	return true;
 }
 
+/** \brief Callback for goal_position topic (in appropriate modes) */
+void position_cb(const wsg_50_common::Cmd::ConstPtr& msg)
+{
+    g_speed = msg->speed; g_goal_position = msg->pos;
+    // timer_cb() will send command to gripper
 
+    if (g_mode_periodic) {
+        // Send command to gripper without waiting for a response
+        // read_thread() handles responses
+        // read/write may be simultaneous, therefore no mutex
+        stop(true);
+        if (move(g_goal_position, g_speed, false, true) != 0)
+            ROS_ERROR("Failed to send MOVE command");
+    }
+}
+
+/** \brief Callback for goal_speed topic (in appropriate modes) */
+void speed_cb(const std_msgs::Float32::ConstPtr& msg)
+{
+    g_goal_speed = msg->data; g_speed = msg->data;
+    // timer_cb() will send command to gripper
+}
+
+/** \brief Loop for state polling in modes script and polling. Also sends command in script mode. */
 void timer_cb(const ros::TimerEvent& ev)
 {
 	// ==== Get state values by built-in commands ====
@@ -238,23 +265,26 @@ void timer_cb(const ros::TimerEvent& ev)
 	float acc = 0.0;
 	info.speed = 0.0;
 
-	if (!g_use_script) {
-		info.state_text = std::string(systemState());
+    if (g_mode_polling) {
+        const char * state = systemState();
+        if (!state)
+            return;
+        info.state_text = std::string(state);
 		info.position = getOpening();
 		acc = getAcceleration();
 		info.f_motor = getForce();//getGraspingForce();
 
-	} else {
+    } else if (g_mode_script) {
 		// ==== Call custom measure-and-move command ====
 		int res = 0;
 		if (!isnan(g_goal_position)) {
 			ROS_INFO("Position command: pos=%5.1f, speed=%5.1f", g_goal_position, g_speed);
-			res = measure_move(1, g_goal_position, g_speed, info);
+            res = script_measure_move(1, g_goal_position, g_speed, info);
 		} else if (!isnan(g_goal_speed)) {
 			ROS_INFO("Velocity command: speed=%5.1f", g_goal_speed);
-			res = measure_move(2, 0, g_goal_speed, info);
+            res = script_measure_move(2, 0, g_goal_speed, info);
 		} else
-			res = measure_move(0, 0, 0, info);
+            res = script_measure_move(0, 0, 0, info);
 		if (!isnan(g_goal_position))
 			g_goal_position = NAN;
 		if (!isnan(g_goal_speed))
@@ -272,7 +302,8 @@ void timer_cb(const ros::TimerEvent& ev)
 			g_pub_moving.publish(moving_msg);
 			g_ismoving = info.ismoving;
 		}
-	}
+    } else
+        return;
 
 	// ==== Status msg ====
 	wsg_50_common::Status status_msg;
@@ -298,8 +329,8 @@ void timer_cb(const ros::TimerEvent& ev)
 	joint_states.position[0] = -info.position/2000.0;
 	joint_states.position[1] = info.position/2000.0;
 	joint_states.velocity.resize(2);		
-	joint_states.velocity[0] = info.speed;
-	joint_states.velocity[1] = info.speed;
+    joint_states.velocity[0] = info.speed/1000.0;
+    joint_states.velocity[1] = info.speed/1000.0;
 	joint_states.effort.resize(2);
 	joint_states.effort[0] = info.f_motor;
 	joint_states.effort[1] = info.f_motor;
@@ -309,12 +340,177 @@ void timer_cb(const ros::TimerEvent& ev)
 	// printf("Timer, last duration: %6.1f\n", ev.profile.last_duration.toSec() * 1000.0);
 }
 
-void position_cb(const wsg_50_common::Cmd::ConstPtr& msg)
-{ g_speed = msg->speed; g_goal_position = msg->pos; }
+
+/** \brief Reads gripper responses in auto_update mode. The gripper pushes state messages in regular intervals. */
+void read_thread(int interval_ms)
+{
+    ROS_INFO("Thread started");
+
+    status_t status;
+    int res;
+    bool pub_state = false;
+
+    double rate_exp = 1000.0 / (double)interval_ms;
+    std::string names[3] = { "opening", "speed", "force" };
+
+    // Prepare messages
+    wsg_50_common::Status status_msg;
+    status_msg.status = "UNKNOWN";
+
+    sensor_msgs::JointState joint_states;
+    joint_states.header.frame_id = "wsg_50_gripper_base_link";
+    joint_states.name.push_back("wsg_50_gripper_base_joint_gripper_left");
+    joint_states.name.push_back("wsg_50_gripper_base_joint_gripper_right");
+    joint_states.position.resize(2);
+    joint_states.velocity.resize(2);
+    joint_states.effort.resize(2);
+
+    // Request automatic updates (error checking is done below)
+    getOpening(interval_ms);
+    getSpeed(interval_ms);
+    getForce(interval_ms);
 
 
-void speed_cb(const std_msgs::Float32::ConstPtr& msg)
-{ g_goal_speed = msg->data; g_speed = msg->data; }
+    msg_t msg; msg.id = 0; msg.data = 0; msg.len = 0;
+    int cnt[3] = {0,0,0};
+    auto time_start = std::chrono::system_clock::now();
+
+
+    while (g_mode_periodic) {
+        // Receive gripper response
+        msg_free(&msg);
+        res = msg_receive( &msg );
+        if (res < 0 || msg.len < 2) {
+            ROS_ERROR("Gripper response failure: too short");
+            continue;
+        }
+
+        float val = 0.0;
+        status = cmd_get_response_status(msg.data);
+
+        // Decode float for opening/speed/force
+        if (msg.id >= 0x43 && msg.id <= 0x45 && msg.len == 6) {
+            if (status != E_SUCCESS) {
+                ROS_ERROR("Gripper response failure for opening/speed/force\n");
+                continue;
+            }
+            val = convert(&msg.data[2]);
+        }
+
+        // Handle response types
+        int motion = -1;  
+        switch (msg.id) {
+        /*** Opening ***/
+        case 0x43:
+            status_msg.width = val;
+            pub_state = true;
+            cnt[0]++;
+            break;
+
+        /*** Speed ***/
+        case 0x44:
+            status_msg.speed = val;
+            cnt[1]++;
+            break;
+
+        /*** Force ***/
+        case 0x45:
+            status_msg.force = val;
+            cnt[2]++;
+            break;
+
+        /*** Move ***/
+        // Move commands are sent from outside this thread
+        case 0x21:
+            if (status == E_SUCCESS) {
+                ROS_INFO("Position reached");
+                motion = 0;
+            } else if (status == E_AXIS_BLOCKED) {
+                ROS_INFO("Axis blocked");
+                motion = 0;
+            } else if (status == E_CMD_PENDING) {
+                ROS_INFO("Movement started");
+                motion = 1;
+            } else if (status == E_ALREADY_RUNNING) {
+                ROS_INFO("Movement error: already running");
+            } else if (status == E_CMD_ABORTED) {
+                ROS_INFO("Movement aborted");
+                motion = 0;
+            } else {
+                ROS_INFO("Movement error");
+                motion = 0;
+            }
+            break;
+
+        /*** Stop ***/
+        // Stop commands are sent from outside this thread
+        case 0x22:
+            // Stop command; nothing to do
+            break;
+        default:
+            ROS_INFO("Received unknown respone 0x%02x (%2dB)\n", msg.id, msg.len);
+        }
+
+        // ***** PUBLISH motion message
+        if (motion == 0 || motion == 1) {
+            std_msgs::Bool moving_msg;
+            moving_msg.data = motion;
+            g_pub_moving.publish(moving_msg);
+            g_ismoving = motion;
+        }
+
+        // ***** PUBLISH state message & joint message
+        if (pub_state) {
+            pub_state = false;
+            g_pub_state.publish(status_msg);
+
+            joint_states.header.stamp = ros::Time::now();;
+            joint_states.position[0] = -status_msg.width/2000.0;
+            joint_states.position[1] = status_msg.width/2000.0;
+            joint_states.velocity[0] = status_msg.speed/1000.0;
+            joint_states.velocity[1] = status_msg.speed/1000.0;
+            joint_states.effort[0] = status_msg.force;
+            joint_states.effort[1] = status_msg.force;
+            g_pub_joint.publish(joint_states);
+        }
+
+        // Check # of received messages regularly
+        std::chrono::duration<float> t = std::chrono::system_clock::now() - time_start;
+        double t_ = t.count();
+        if (t_ > 5.0) {
+            time_start = std::chrono::system_clock::now();
+            //printf("Infos for %5.1fHz, %5.1fHz, %5.1fHz\n", (double)cnt[0]/t_, (double)cnt[1]/t_, (double)cnt[2]/t_);
+
+            std::string info = "Rates for ";
+            for (int i=0; i<3; i++) {
+                double rate_is = (double)cnt[i]/t_;
+                info += names[i] + ": " + std::to_string((int)rate_is) + "Hz, ";
+                if (rate_is == 0.0)
+                    ROS_ERROR("Did not receive data for %s", names[i].c_str());
+            }
+            ROS_DEBUG_STREAM((info + " expected: " + std::to_string((int)rate_exp) + "Hz").c_str());
+            cnt[0] = 0; cnt[1] = 0; cnt[2] = 0;
+        }
+
+
+    }
+
+    // Disable automatic updates
+    // TODO: The functions will receive an unexpected response
+    getOpening(0);
+    getSpeed(0);
+    getForce(0);
+
+    ROS_INFO("Thread ended");
+}
+
+void sigint_handler(int sig) {
+    ROS_INFO("Exiting...");
+    g_mode_periodic = false;
+    g_mode_script = false;
+    g_mode_polling = false;
+    ros::shutdown();
+}
 
 /**
  * The main function
@@ -323,45 +519,75 @@ void speed_cb(const std_msgs::Float32::ConstPtr& msg)
 int main( int argc, char **argv )
 {
    ros::init(argc, argv, "wsg_50");
-
    ros::NodeHandle nh("~");
-   std::string ip;
-   int port;
+   signal(SIGINT, sigint_handler);
+
+   std::string ip, protocol, com_mode;
+   int port, local_port;
    double rate, grasping_force;
+   bool use_udp = false;
 
    nh.param("ip", ip, std::string("192.168.1.20"));
    nh.param("port", port, 1000);
-   nh.param("use_script", g_use_script, false);
+   nh.param("local_port", local_port, 1501);
+   nh.param("protocol", protocol, std::string(""));
+   nh.param("com_mode", com_mode, std::string(""));
    nh.param("rate", rate, 1.0); // With custom script, up to 30Hz are possible
    nh.param("grasping_force", grasping_force, 0.0);
 
-   ROS_INFO("Connecting to %s...", ip.c_str());
+   if (protocol == "udp")
+       use_udp = true;
+   else
+       protocol = "tcp";
+   if (com_mode == "script")
+       g_mode_script = true;
+   else if (com_mode == "auto_update")
+       g_mode_periodic = true;
+   else {
+       com_mode = "polling";
+       g_mode_polling = true;
+   }
 
-   // Connect to device using TCP
-   if( cmd_connect_tcp( ip.c_str(), port ) == 0 )
-   {
-		ROS_INFO("TCP connection stablished");
+   ROS_INFO("Connecting to %s:%d (%s); communication mode: %s ...", ip.c_str(), port, protocol.c_str(), com_mode.c_str());
+
+   // Connect to device using TCP/USP
+   int res_con;
+   if (!use_udp)
+       res_con = cmd_connect_tcp( ip.c_str(), port );
+   else
+       res_con = cmd_connect_udp(local_port, ip.c_str(), port );
+
+   if (res_con == 0 ) {
+        ROS_INFO("Gripper connection stablished");
 
 		// Services
-		ros::ServiceServer moveSS = nh.advertiseService("move", moveSrv);
-		ros::ServiceServer graspSS = nh.advertiseService("grasp", graspSrv);
-		ros::ServiceServer releaseSS = nh.advertiseService("release", releaseSrv);
-		ros::ServiceServer homingSS = nh.advertiseService("homing", homingSrv);
-		ros::ServiceServer stopSS = nh.advertiseService("stop", stopSrv);
-		ros::ServiceServer ackSS = nh.advertiseService("ack", ackSrv);
-		ros::ServiceServer incrementSS = nh.advertiseService("move_incrementally", incrementSrv);
+        ros::ServiceServer moveSS, graspSS, releaseSS, homingSS, stopSS, ackSS, incrementSS, setAccSS, setForceSS;
 
-		ros::ServiceServer setAccSS = nh.advertiseService("set_acceleration", setAccSrv);
-		ros::ServiceServer setForceSS = nh.advertiseService("set_force", setForceSrv);
+        if (g_mode_script || g_mode_polling) {
+            moveSS = nh.advertiseService("move", moveSrv);
+            graspSS = nh.advertiseService("grasp", graspSrv);
+            releaseSS = nh.advertiseService("release", releaseSrv);
+            homingSS = nh.advertiseService("homing", homingSrv);
+            stopSS = nh.advertiseService("stop", stopSrv);
+            ackSS = nh.advertiseService("ack", ackSrv);
+            incrementSS = nh.advertiseService("move_incrementally", incrementSrv);
+
+            setAccSS = nh.advertiseService("set_acceleration", setAccSrv);
+            setForceSS = nh.advertiseService("set_force", setForceSrv);
+        }
 
 		// Subscriber
-		ros::Subscriber sub_position = nh.subscribe("goal_position", 5, position_cb);
-		ros::Subscriber sub_speed = nh.subscribe("goal_speed", 5, speed_cb);
+        ros::Subscriber sub_position, sub_speed;
+        if (g_mode_script || g_mode_periodic)
+            sub_position = nh.subscribe("goal_position", 5, position_cb);
+        if (g_mode_script)
+            sub_speed = nh.subscribe("goal_speed", 5, speed_cb);
 
 		// Publisher
 		g_pub_state = nh.advertise<wsg_50_common::Status>("status", 1000);
 		g_pub_joint = nh.advertise<sensor_msgs::JointState>("/joint_states", 10);
-		g_pub_moving = nh.advertise<std_msgs::Bool>("moving", 10);
+        if (g_mode_script || g_mode_periodic)
+            g_pub_moving = nh.advertise<std_msgs::Bool>("moving", 10);
 
 		ROS_INFO("Ready to use, homing now...");
 		homing();
@@ -371,17 +597,26 @@ int main( int argc, char **argv )
 			setGraspingForceLimit(grasping_force);
 		}
 
-		ROS_INFO("Target rate %.1f, using custom script: %s", rate, (g_use_script)? "yes":"no");
-		ros::Timer t = nh.createTimer(ros::Duration(1.0/rate), timer_cb);
-		ros::spin();
+        ROS_INFO("Init done. Starting timer/thread with target rate %.1f.", rate);
+        std::thread th;
+        ros::Timer tmr;
+        if (g_mode_polling || g_mode_script)
+            tmr = nh.createTimer(ros::Duration(1.0/rate), timer_cb);
+        if (g_mode_periodic)
+             th = std::thread(read_thread, (int)(1000.0/rate));
+
+        ros::spin();
 
 	} else {
-		ROS_ERROR("Unable to connect via TCP, please check the port and address used.");
+        ROS_ERROR("Unable to connect, please check the port and address used.");
 	}
 
-	// Disconnect - won't be executed atm. as the endless loop in test()
-	// will never return.
-	cmd_disconnect();
+   ROS_INFO("Exiting...");
+   g_mode_periodic = false;
+   g_mode_script = false;
+   g_mode_polling = false;
+   sleep(1);
+   cmd_disconnect();
 
 	return 0;
 
