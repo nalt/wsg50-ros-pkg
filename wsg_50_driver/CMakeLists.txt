@@ -23,7 +23,7 @@ catkin_package(
 
 
 # WSG_50_TCP version
-set(DRIVER_SOURCES 
+set(DRIVER_SOURCES
   src/checksum.cpp include/wsg_50/checksum.h
   src/cmd.c include/wsg_50/cmd.h
   src/common.cpp include/wsg_50/common.h
@@ -66,7 +66,7 @@ endif()
 
 add_executable(wsg_50_ip src/main.cpp ${DRIVER_SOURCES})
 target_link_libraries(wsg_50_ip ${catkin_LIBRARIES})
-add_dependencies(wsg_50_ip wsg_50_common_gencpp)
+add_dependencies(wsg_50_ip wsg_50_common_generate_messages_cpp)
 
 #add_executable(wsg_50_can src/main_can.cpp src/checksum.cpp src/msg.c src/common.cpp src/functions_can.cpp)
 #add_executable(wsg_50_can src/main_can.cpp ${DRIVER_SOURCES_CAN})
@@ -75,5 +75,3 @@ add_dependencies(wsg_50_ip wsg_50_common_gencpp)
 #link_directories(/home/marc/peak-linux-driver-7.5/lib/)
 #add_compile_flags(wsg_50_can -g -Wall)
 #target_link_libraries(wsg_50_can pcan)
-
-
