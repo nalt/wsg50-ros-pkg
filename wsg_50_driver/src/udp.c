@@ -198,8 +198,11 @@ int udp_read( unsigned char *buf, unsigned int len )
     	// Wait for packet to arrive
     	FD_ZERO( &readfds );
     	FD_SET( conn.sock, &readfds );
-        res = select( conn.sock + 1, &readfds, NULL, NULL, NULL );
-        if ( res < 0 ) return -1;
+        struct timeval timeout;
+        timeout.tv_sec = 0; timeout.tv_usec = 150000;
+        res = select( conn.sock + 1, &readfds, NULL, NULL, &timeout);
+        if ( res == 0 ) return -1; /* timeout */
+        if ( res < 0 ) return -1;  /* error */
 
     	// Get size of packet pending
         res = ioctl( conn.sock, FIONREAD, &packsize );

@@ -319,12 +319,13 @@ void timer_cb(const ros::TimerEvent& ev)
              
 
 	// ==== Joint state msg ====
+    // \todo Use name of node for joint names
 	sensor_msgs::JointState joint_states;
 	joint_states.header.stamp = ros::Time::now();;
-	joint_states.header.frame_id = "wsg_50_gripper_base_link";
-		joint_states.name.push_back("wsg_50_gripper_base_joint_gripper_left");
-	joint_states.name.push_back("wsg_50_gripper_base_joint_gripper_right");
-		joint_states.position.resize(2);
+	joint_states.header.frame_id = "wsg50_base_link";
+	joint_states.name.push_back("wsg50_finger_left_joint");
+	joint_states.name.push_back("wsg50_finger_right_joint");
+	joint_states.position.resize(2);
 
 	joint_states.position[0] = -info.position/2000.0;
 	joint_states.position[1] = info.position/2000.0;
@@ -358,9 +359,9 @@ void read_thread(int interval_ms)
     status_msg.status = "UNKNOWN";
 
     sensor_msgs::JointState joint_states;
-    joint_states.header.frame_id = "wsg_50_gripper_base_link";
-    joint_states.name.push_back("wsg_50_gripper_base_joint_gripper_left");
-    joint_states.name.push_back("wsg_50_gripper_base_joint_gripper_right");
+    joint_states.header.frame_id = "wsg50_base_link";
+    joint_states.name.push_back("wsg50_finger_left_joint");
+    joint_states.name.push_back("wsg50_finger_right_joint");
     joint_states.position.resize(2);
     joint_states.velocity.resize(2);
     joint_states.effort.resize(2);
@@ -381,7 +382,7 @@ void read_thread(int interval_ms)
         msg_free(&msg);
         res = msg_receive( &msg );
         if (res < 0 || msg.len < 2) {
-            ROS_ERROR("Gripper response failure: too short");
+            ROS_ERROR("Gripper response failure");
             continue;
         }
 

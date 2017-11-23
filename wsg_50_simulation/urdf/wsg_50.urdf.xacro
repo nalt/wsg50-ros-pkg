@@ -5,7 +5,10 @@
         xmlns:xacro="http://ros.org/wiki/xacro"
 	name="wsg_50">
 
-<xacro:macro name="wsg_50_xacro" params="name parent *origin">
+<!-- finger_length: Length of finger from gripper base. (was 0.023) -->
+<!-- finger_tip:    Offset of finger tip along fingers' motion direction.
+                    Use e.g. for single contact point tip on finger. (default 0) -->
+<xacro:macro name="wsg_50_xacro" params="name parent finger_length finger_tip *origin">
 
  <joint name="${name}_anterior_gripper_joint" type="fixed">
     <insert_block name="origin"/>
@@ -49,9 +52,18 @@
     <turnGravityOff>false</turnGravityOff>
   </gazebo>
 
-  <!-- GRIPPER LEFT -->
+  <joint name="${name}_center_joint" type="fixed">
+     <origin xyz="0 0 ${finger_length}" rpy="0 0 0" />      <!--origin xyz="-0.0067 0 0.049" rpy="0 0 0" /-->
+     <parent link="${name}_base_link"/>
+     <child link="${name}_center" />
+  </joint>
 
-  <joint name="${name}_base_joint_gripper_left" type="prismatic">
+
+  <link name="${name}_center">
+  </link>
+
+  <!-- GRIPPER LEFT -->
+  <joint name="${name}_finger_left_joint" type="prismatic">
      <limit lower="-0.055" upper="-0.0027" effort="1.0" velocity="1.0"/>
      <origin xyz="0 0 0" rpy="0 0 0" />      <!--origin xyz="-0.0067 0 0.049" rpy="0 0 0" /-->
      <parent link="${name}_base_link"/>
@@ -105,9 +117,8 @@
 
 
   <!-- LEFT FINGER -->
-
   <joint name="${name}_guide_joint_finger_left" type="fixed">
-     <origin xyz="0 0 0.023" rpy="0 0 0" />
+     <origin xyz="${finger_tip} 0 ${finger_length}" rpy="0 0 0" />
      <parent link="${name}_gripper_left"/>
      <child link="${name}_finger_left" />
      <dynamics friction="100" damping="100" />
@@ -151,7 +162,7 @@
 
   <!-- GRIPPER RIGHT -->
 
-  <joint name="${name}_base_joint_gripper_right" type="prismatic">
+  <joint name="${name}_finger_right_joint" type="prismatic">
      <limit lower="0.0027" upper="0.055" effort="1.0" velocity="1.0"/>
      <origin xyz="0 0 0" rpy="0 0 3.14159" />
      <parent link="${name}_base_link"/>
@@ -206,7 +217,7 @@
   <!-- RIGHT FINGER -->
 
   <joint name="${name}_guide_joint_finger_right" type="fixed">
-     <origin xyz="0 0 0.023" rpy="0 0 0" />
+     <origin xyz="${finger_tip} 0 ${finger_length}" rpy="0 0 0" />
      <parent link="${name}_gripper_right"/>
      <child link="${name}_finger_right" />
      <dynamics friction="100" damping="100" />
