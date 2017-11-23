@@ -469,6 +469,37 @@ int setGraspingForceLimit( float force )
 }
 
 
+int doTare( void )
+{
+    status_t status;
+    int res;
+    unsigned char payload[3];
+    unsigned char *resp;
+    unsigned int resp_len;
+
+    // Submit command and wait for response. Push result to stack.
+    res = cmd_submit( 0x38, payload, 0, true, &resp, &resp_len );
+    if ( res != 2 )
+    {
+        dbgPrint( "Response payload length doesn't match (is %d, expected 2)\n", res );
+        if ( res > 0 ) free( resp );
+        return 0;
+    }
+
+
+    // Check response status
+    status = cmd_get_response_status( resp );
+    free( resp );
+    if ( status != E_SUCCESS )
+    {
+        dbgPrint( "Command TARE not successful: %s\n", status_to_str( status ) );
+        return -1;
+    }
+
+    return 0;
+}
+
+
 ///////////////////
 // GET FUNCTIONS //
 ///////////////////

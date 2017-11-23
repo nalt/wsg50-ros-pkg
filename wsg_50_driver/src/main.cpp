@@ -589,8 +589,10 @@ int main( int argc, char **argv )
         if (g_mode_script || g_mode_periodic)
             g_pub_moving = nh.advertise<std_msgs::Bool>("moving", 10);
 
-		ROS_INFO("Ready to use, homing now...");
+		ROS_INFO("Ready to use. Homing and taring now...");
 		homing();
+        ros::Duration(0.5).sleep();
+        doTare();
 
 		if (grasping_force > 0.0) {
 			ROS_INFO("Setting grasping force limit to %5.1f", grasping_force);

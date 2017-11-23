@@ -75,6 +75,7 @@ int ack_fault( void );
 
 int setAcceleration( float acc );
 int setGraspingForceLimit( float force );
+int doTare( void );
 
 const char * systemState( void );
 int graspingState( void );
