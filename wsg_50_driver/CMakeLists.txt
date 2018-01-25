@@ -9,6 +9,7 @@ find_package(catkin REQUIRED COMPONENTS
   std_msgs
   std_srvs
   wsg_50_common
+  actionlib
 )
 
 catkin_package(
@@ -29,6 +30,9 @@ set(DRIVER_SOURCES
   src/common.cpp include/wsg_50/common.h
   src/functions.cpp include/wsg_50/functions.h
   src/interface.cpp include/wsg_50/interface.h
+  src/gripper_communication.cpp include/wsg_50/gripper_communication.h
+  src/gripper_action_server.cpp include/wsg_50/gripper_action_server.h
+  include/wsg_50/node_state.h
   src/main.cpp
   src/msg.c include/wsg_50/msg.h
   src/serial.c include/wsg_50/serial.h
