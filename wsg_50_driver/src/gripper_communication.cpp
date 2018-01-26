@@ -510,7 +510,7 @@ void GripperCommunication::set_force(float force, GripperCallback callback) {
 	m.len = 4;
 	m.data = payload;
 
-	this->sendCommand(m, callback);
+	this->sendCommandSynchronous(m);
 }
 
 void GripperCommunication::set_acceleration(float acceleration, GripperCallback callback) {
@@ -523,7 +523,7 @@ void GripperCommunication::set_acceleration(float acceleration, GripperCallback 
 	m.len = 4;
 	m.data = payload;
 
-	this->sendCommand(m, callback);
+	this->sendCommandSynchronous(m);
 }
 
 
