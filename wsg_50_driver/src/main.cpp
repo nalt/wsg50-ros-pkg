@@ -91,6 +91,7 @@ float g_goal_position = NAN, g_goal_speed = NAN, g_speed = 10.0;
 wsg_50_common::Status status_message;
 NodeState node_state;
 GripperActionServer* action_server = nullptr;
+ros::Time last_publish = ros::Time(0);
 
 //------------------------------------------------------------------------
 // Unit testing
@@ -687,31 +688,37 @@ void loop_cb(const ros::TimerEvent& ev) {
 	gripperCom.requestValueUpdate(
 			(unsigned char) WellKnownMessageId::SPEED_VALUES);
 
-	// publish current state
-	status_message.grasping_state_id = gripperState.grasping_state;
-	status_message.width = gripperState.width;
-	status_message.current_force = gripperState.force;
-	status_message.current_speed = gripperState.speed;
-	g_pub_state.publish(status_message);
+	bool time_to_publish = ros::Time::now().toSec() - last_publish.toSec() > 0.05;
 
-	g_pub_heartbeat.publish(heartbeat_msg);
+	if (time_to_publish) {
+		// publish current state
+		status_message.grasping_state_id = gripperState.grasping_state;
+		status_message.width = gripperState.width;
+		status_message.current_force = gripperState.force;
+		status_message.current_speed = gripperState.speed;
+		g_pub_state.publish(status_message);
 
-	sensor_msgs::JointState joint_states;
-	joint_states.header.frame_id = "wsg50_base_link";
-	joint_states.name.push_back("wsg50_finger_left_joint");
-	joint_states.name.push_back("wsg50_finger_right_joint");
-	joint_states.position.resize(2);
-	joint_states.velocity.resize(2);
-	joint_states.effort.resize(2);
+		g_pub_heartbeat.publish(heartbeat_msg);
 
-	joint_states.header.stamp = ros::Time::now();
-	joint_states.position[0] = -gripperState.width / 2000.0;
-	joint_states.position[1] = gripperState.width / 2000.0;
-	joint_states.velocity[0] = gripperState.speed / 1000.0;
-	joint_states.velocity[1] = gripperState.speed / 1000.0;
-	joint_states.effort[0] = gripperState.force;
-	joint_states.effort[1] = gripperState.force;
-	g_pub_joint.publish(joint_states);
+		sensor_msgs::JointState joint_states;
+		joint_states.header.frame_id = "wsg50_base_link";
+		joint_states.name.push_back("wsg50_finger_left_joint");
+		joint_states.name.push_back("wsg50_finger_right_joint");
+		joint_states.position.resize(2);
+		joint_states.velocity.resize(2);
+		joint_states.effort.resize(2);
+
+		joint_states.header.stamp = ros::Time::now();
+		joint_states.position[0] = -gripperState.width / 2000.0;
+		joint_states.position[1] = gripperState.width / 2000.0;
+		joint_states.velocity[0] = gripperState.speed / 1000.0;
+		joint_states.velocity[1] = gripperState.speed / 1000.0;
+		joint_states.effort[0] = gripperState.force;
+		joint_states.effort[1] = gripperState.force;
+		g_pub_joint.publish(joint_states);
+
+		last_publish = ros::Time::now();
+	}
 }
 
 /**
