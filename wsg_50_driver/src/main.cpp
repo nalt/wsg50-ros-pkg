@@ -273,8 +273,10 @@ bool setAccSrv(wsg_50_common::Conf::Request &req,
 	auto& gripperCom = GripperCommunication::Instance();
 	try {
 		gripperCom.set_acceleration(req.val);
+		res.error = 0;
 	} catch (std::runtime_error& ex) {
 		ROS_ERROR("Could not send acceleration: %s\n", ex.what());
+		res.error = -1;
 		return false;
 	}
 	return true;
@@ -285,8 +287,10 @@ bool setForceSrv(wsg_50_common::Conf::Request &req,
 	auto& gripperCom = GripperCommunication::Instance();
 	try {
 		gripperCom.set_force(req.val);
+		res.error = 0;
 	} catch (std::runtime_error& ex) {
 		ROS_FATAL("Could not send grasping force command: %s\n", ex.what());
+		res.error = -1;
 		return false;
 	}
 	return true;
