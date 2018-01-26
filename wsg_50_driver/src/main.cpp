@@ -56,6 +56,7 @@
 #include "wsg_50_common/Status.h"
 #include "wsg_50_common/Move.h"
 #include "wsg_50_common/Conf.h"
+#include "wsg_50_common/GetGripperStatus.h"
 #include "wsg_50_common/Incr.h"
 #include "wsg_50_common/Cmd.h"
 
@@ -287,6 +288,19 @@ bool setForceSrv(wsg_50_common::Conf::Request &req,
 		ROS_FATAL("Could not send grasping force command: %s\n", ex.what());
 		return false;
 	}
+	return true;
+}
+
+bool getGripperStatusService(wsg_50_common::GetGripperStatus::Request &req,
+		wsg_50_common::GetGripperStatus::Response &res) {
+	auto& gripperCom = GripperCommunication::Instance();
+	wsg_50_common::Status status;
+	auto gripperState = gripperCom.getState();
+	status.grasping_state_id = gripperState.grasping_state;
+	status.width = gripperState.width;
+	status.current_force = gripperState.force;
+	status.current_speed = gripperState.speed;
+	res.status = status;
 	return true;
 }
 
@@ -781,11 +795,12 @@ int main(int argc, char **argv) {
 			g_pub_heartbeat.publish(msg);
 
 			// Services
-			ros::ServiceServer setAccSS, setForceSS, stopSS, ackSS;
+			ros::ServiceServer setAccSS, setForceSS, stopSS, ackSS, getStatusSS;
 			setAccSS = nh.advertiseService("set_acceleration", setAccSrv);
 			setForceSS = nh.advertiseService("set_force", setForceSrv);
 			stopSS = nh.advertiseService("soft_stop", stopSrv);
 			ackSS = nh.advertiseService("acknowledge_error", ackSrv);
+			getStatusSS = nh.advertiseService("get_gripper_status", getGripperStatusService);
 
 			// Open action server
 			action_server = new GripperActionServer(nh,
@@ -826,6 +841,7 @@ int main(int argc, char **argv) {
 			setForceSS.shutdown();
 			stopSS.shutdown();
 			ackSS.shutdown();
+			getStatusSS.shutdown();
 			g_pub_state.shutdown();
 			g_pub_joint.shutdown();
 		}
