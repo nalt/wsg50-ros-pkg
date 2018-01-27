@@ -92,6 +92,8 @@ wsg_50_common::Status status_message;
 NodeState node_state;
 GripperActionServer* action_server = nullptr;
 ros::Time last_publish = ros::Time(0);
+std::string prefix;
+sensor_msgs::JointState joint_states;
 
 //------------------------------------------------------------------------
 // Unit testing
@@ -119,15 +121,18 @@ std::vector<std::string> get_name(XmlRpc::XmlRpcValue controller_list) {
 							static_cast<std::string>(controller_list[j]["action_ns"]);
 					std::string type =
 							static_cast<std::string>(controller_list[j]["type"]);
-					std::string joint =
+					std::string left_joint =
 							static_cast<std::string>(controller_list[j]["joints"][0]);
+					std::string right_joint =
+							static_cast<std::string>(controller_list[j]["joints"][1]);
 					std::cout << "Name : " << name << " -> " << type
 							<< std::endl;
 					if (type == "WeissGripperCmd") {
 						result.push_back(name);
 						result.push_back(action_ns);
 						result.push_back(type);
-						result.push_back(joint);
+						result.push_back(left_joint);
+						result.push_back(right_joint);
 					}
 				}
 			}
@@ -704,14 +709,6 @@ void loop_cb(const ros::TimerEvent& ev) {
 
 		g_pub_heartbeat.publish(heartbeat_msg);
 
-		sensor_msgs::JointState joint_states;
-		joint_states.header.frame_id = "wsg50_base_link";
-		joint_states.name.push_back("wsg50_finger_left_joint");
-		joint_states.name.push_back("wsg50_finger_right_joint");
-		joint_states.position.resize(2);
-		joint_states.velocity.resize(2);
-		joint_states.effort.resize(2);
-
 		joint_states.header.stamp = ros::Time::now();
 		joint_states.position[0] = -gripperState.width / 2000.0;
 		joint_states.position[1] = gripperState.width / 2000.0;
@@ -748,6 +745,7 @@ int main(int argc, char **argv) {
 	nh.param("com_mode", com_mode, std::string(""));
 	nh.param("rate", rate, 1.0); // With custom script, up to 30Hz are possible
 	nh.param("grasping_force", grasping_force, 0.0);
+	nh.param("prefix", prefix, std::string(""));
 
 	if (protocol == "udp")
 		use_udp = true;
@@ -787,6 +785,13 @@ int main(int argc, char **argv) {
 					"Could not find controller_list. This error is not recoverable.");
 		} else {
 			std::string controller_name = result[0];
+			std::string action_ns = result[1];
+			joint_states.header.frame_id = prefix + "_base_link";
+			joint_states.name.push_back(result[3]);
+			joint_states.name.push_back(result[4]);
+			joint_states.position.resize(2);
+			joint_states.velocity.resize(2);
+			joint_states.effort.resize(2);
 
 			// Open publishers
 			g_pub_state = nh.advertise<wsg_50_common::Status>(
@@ -815,7 +820,7 @@ int main(int argc, char **argv) {
 
 			// Open action server
 			action_server = new GripperActionServer(nh,
-					controller_name + "/command", gripperCom, node_state);
+					controller_name + "/" + action_ns, gripperCom, node_state);
 			action_server->start();
 
 			try {

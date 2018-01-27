@@ -3,5 +3,6 @@
       action_ns: gripper_controller
       type: WeissGripperCmd
       joints:
-        - wsg50_base_joint_gripper_right
+        - wsg50_base_joint_gripper_lefty
+        - wsg50_base_joint_gripper_righty
 
