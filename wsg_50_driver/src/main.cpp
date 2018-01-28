@@ -812,11 +812,11 @@ int main(int argc, char **argv) {
 
 			// Services
 			ros::ServiceServer setAccSS, setForceSS, stopSS, ackSS, getStatusSS;
-			setAccSS = nh.advertiseService("set_acceleration", setAccSrv);
-			setForceSS = nh.advertiseService("set_force", setForceSrv);
-			stopSS = nh.advertiseService("soft_stop", stopSrv);
-			ackSS = nh.advertiseService("acknowledge_error", ackSrv);
-			getStatusSS = nh.advertiseService("get_gripper_status", getGripperStatusService);
+			setAccSS = nh.advertiseService(controller_name + "/set_acceleration", setAccSrv);
+			setForceSS = nh.advertiseService(controller_name + "/set_force", setForceSrv);
+			stopSS = nh.advertiseService(controller_name + "/soft_stop", stopSrv);
+			ackSS = nh.advertiseService(controller_name + "/acknowledge_error", ackSrv);
+			getStatusSS = nh.advertiseService(controller_name + "/get_gripper_status", getGripperStatusService);
 
 			// Open action server
 			action_server = new GripperActionServer(nh,
