@@ -145,7 +145,8 @@ void GripperCommunication::sendCommand(msg_t& message,
 	printf("-- Send message id: %d, len: %d\n", message.id, message.len);
 }
 
-void GripperCommunication::sendCommandSynchronous(msg_t& message) {
+void GripperCommunication::sendCommandSynchronous(msg_t& message, int timeout_in_ms) {
+	printf("--> send: %d\n", message.id);
 	int result = msg_send(&message);
 
 	if (result == -1) {
@@ -153,11 +154,15 @@ void GripperCommunication::sendCommandSynchronous(msg_t& message) {
 	}
 
 	msg_t received;
+	auto start_time = ros::Time::now().toSec();
 	do {
 		received = processMessages();
-		printf("-- received id %d\n", received.id);
-		std::chrono::milliseconds timespan(10);
+		printf("<-- received %d\n", received.id);
+		std::chrono::milliseconds timespan(1);
 		std::this_thread::sleep_for(timespan);
+		if ((ros::Time::now().toSec() - start_time) * 1000 > timeout_in_ms) {
+			throw MessageTimedOut();
+		}
 	} while (message.id != received.id);
 }
 
@@ -256,21 +261,6 @@ void GripperCommunication::activateAutoUpdates(const unsigned char messageId,
 }
 
 void GripperCommunication::requestValueUpdate(const unsigned char messageId) {
-	if (messageId == (unsigned char)WellKnownMessageId::FORCE_VALUES) {
-		if (!requestForceToggle) {
-			return;
-		} else {
-			requestForceToggle = false;
-		}
-	}
-	if (messageId == (unsigned char)WellKnownMessageId::SPEED_VALUES) {
-		if (!requestSpeedToggle) {
-			return;
-		} else {
-			requestSpeedToggle = false;
-		}
-	}
-
 	//printf("Request id: %d\n", messageId);
 	// Payload = 0, except for auto update
 	unsigned char payload[3];
@@ -296,7 +286,6 @@ void GripperCommunication::graspingStateCallback(msg_t& message) {
 }
 
 void GripperCommunication::speedCallback(msg_t& message) {
-	requestSpeedToggle = true;
 	if (message.len > 0) {
 		auto status = (status_t) make_short(message.data[0], message.data[1]);
 		if (status == E_SUCCESS) {
@@ -308,7 +297,6 @@ void GripperCommunication::speedCallback(msg_t& message) {
 }
 
 void GripperCommunication::forceCallback(msg_t& message) {
-	requestForceToggle = true;
 	if (message.len > 0) {
 		//printf("Force callback id: %d\n", message.id);
 		auto status = (status_t) make_short(message.data[0], message.data[1]);
@@ -343,7 +331,6 @@ void GripperCommunication::updateCommandState(unsigned char messageId,
 
 
 void GripperCommunication::homing(GripperCallback callback) {
-	//auto m = this->createHomingMessage().toMessage();
 	unsigned char payload[1];
 	payload[0] = 0x00;
 	msg_t m;
@@ -355,7 +342,6 @@ void GripperCommunication::homing(GripperCallback callback) {
 }
 
 void GripperCommunication::acknowledge_error() {
-	//auto m = this->createAcknowledgeMessage().toMessage();
 	unsigned char payload[3];
 	payload[0] = 0x61;
 	payload[1] = 0x63;
@@ -370,7 +356,6 @@ void GripperCommunication::acknowledge_error() {
 }
 
 void GripperCommunication::soft_stop() {
-	//auto m = this->createSoftStopMessage().toMessage();
 	unsigned char payload[0];
 	msg_t m;
 	m.id = (unsigned char) WellKnownMessageId::SOFT_STOP;
@@ -381,7 +366,6 @@ void GripperCommunication::soft_stop() {
 }
 
 void GripperCommunication::fast_stop() {
-	//auto m = this->createEmergencyStopMessage().toMessage();
 	unsigned char payload[0];
 	msg_t m;
 	m.id = (unsigned char) WellKnownMessageId::EMERGENCY_STOP;
@@ -392,7 +376,6 @@ void GripperCommunication::fast_stop() {
 }
 
 void GripperCommunication::set_force(float force) {
-	//auto m = this->createSetForceMessage(force).toMessage();
 	unsigned char payload[4];
 	memcpy( &payload[0], &force, sizeof( float ) );
 
@@ -405,7 +388,6 @@ void GripperCommunication::set_force(float force) {
 }
 
 void GripperCommunication::set_acceleration(float acceleration) {
-	//auto m = this->createSetAccelerationMessage(acceleration).toMessage();
 	unsigned char payload[4];
 	memcpy( &payload[0], &acceleration, sizeof( float ) );
 

@@ -185,6 +185,14 @@ void GripperActionServer::stopCallback(msg_t& message) {
 
 void GripperActionServer::cancelCallback(GoalHandle goal_handle) {
 	printf("CANCEL CALLBACK\n");
+	if (this->action_state.state != ActionStateCode::NO_GOAL) {
+		ROS_WARN("Stop received. Aborting goal");
+		wsg_50_common::CommandResult result;
+		result.status = this->fillStatus();
+		this->current_goal_handle.setAborted(result,
+				"Received cancel request");
+		this->action_state.state = ActionStateCode::NO_GOAL;
+	}
 }
 
 wsg_50_common::Status GripperActionServer::fillStatus() {

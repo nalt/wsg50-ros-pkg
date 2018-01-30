@@ -1,6 +1,7 @@
 #ifndef GRIPPER_COMM_H_
 #define GRIPPER_COMM_H_
 
+#include <ros/ros.h>
 #include "msg.h"
 #include "common.h"
 #include <map>
@@ -78,7 +79,7 @@ final {
 		}
 
 		void sendCommand(msg_t& message, GripperCallback callback = nullptr);
-		void sendCommandSynchronous(msg_t& message);
+		void sendCommandSynchronous(msg_t& message, int timeout_in_ms = 1000);
 		CommandSubscription subscribe(unsigned char messageId,
 				GripperCallback callback);
 		void unregisterListener(unsigned char messageId, int listenerId);
@@ -126,8 +127,6 @@ final {
 			gripper_state.width = -1;
 			gripper_state.grasping_state = -1;
 			gripper_state.system_state = -1;
-			requestForceToggle = true;
-			requestSpeedToggle = true;
 		}
 
 		void activateAutoUpdates(const unsigned char messageId,
@@ -144,8 +143,6 @@ final {
 		std::map<unsigned char, CommandStateCode> commandStates;
 		std::shared_ptr<CommandState> currentCommand;
 		GripperState gripper_state;
-		bool requestForceToggle;
-		bool requestSpeedToggle;
 	};
 
 	class MessageQueueFull: public std::runtime_error {
@@ -166,6 +163,13 @@ final {
 	public:
 		MessageReceiveFailed() :
 				std::runtime_error("MessageReceiveFailed") {
+		}
+	};
+
+	class MessageTimedOut: public std::runtime_error {
+	public:
+		MessageTimedOut() :
+				std::runtime_error("MessageTimedOut") {
 		}
 	};
 
