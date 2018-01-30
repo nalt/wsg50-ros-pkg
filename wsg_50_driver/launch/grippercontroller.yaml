@@ -1,6 +1,6 @@
   controller_list:
-    - name: "gripper"
-      action_ns: gripper_controller
+    - name: "wsg50"
+      action_ns: gripper_control
       type: WeissGripperCmd
       joints:
         - wsg50_base_joint_gripper_lefty

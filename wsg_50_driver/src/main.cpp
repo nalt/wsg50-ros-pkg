@@ -94,6 +94,7 @@ GripperActionServer* action_server = nullptr;
 ros::Time last_publish = ros::Time(0);
 std::string prefix;
 sensor_msgs::JointState joint_states;
+ros::Time last_status_request;
 
 //------------------------------------------------------------------------
 // Unit testing
@@ -265,6 +266,19 @@ bool stopSrv(std_srvs::Empty::Request &req, std_srvs::Empty::Request &res) {
 	auto& gripperCom = GripperCommunication::Instance();
 	try {
 		gripperCom.soft_stop();
+	} catch (std::runtime_error& ex) {
+		ROS_FATAL("Could not send stop command");
+		return false;
+	}
+	ROS_WARN("Stopped.");
+	return true;
+}
+
+bool fastStopSrv(std_srvs::Empty::Request &req, std_srvs::Empty::Request &res) {
+	ROS_WARN("Stop!");
+	auto& gripperCom = GripperCommunication::Instance();
+	try {
+		gripperCom.fast_stop();
 	} catch (std::runtime_error& ex) {
 		ROS_FATAL("Could not send stop command");
 		return false;
@@ -692,10 +706,13 @@ void loop_cb(const ros::TimerEvent& ev) {
 	}
 	}
 
-	gripperCom.requestValueUpdate(
-			(unsigned char) WellKnownMessageId::FORCE_VALUES);
-	gripperCom.requestValueUpdate(
-			(unsigned char) WellKnownMessageId::SPEED_VALUES);
+	if (ros::Time::now().toSec() - last_status_request.toSec() > 0.1) {
+		last_status_request = ros::Time::now();
+		gripperCom.requestValueUpdate(
+				(unsigned char) WellKnownMessageId::FORCE_VALUES);
+		gripperCom.requestValueUpdate(
+				(unsigned char) WellKnownMessageId::SPEED_VALUES);
+	}
 
 	bool time_to_publish = ros::Time::now().toSec() - last_publish.toSec() > 0.05;
 
@@ -775,7 +792,7 @@ int main(int argc, char **argv) {
 		printf("Register callback\n");
 
 		printf("Create message processing timer\n");
-		auto tmr = nh.createTimer(ros::Duration(0.005), loop_cb);
+		auto tmr = nh.createTimer(ros::Duration(0.001), loop_cb);
 
 		XmlRpc::XmlRpcValue tmp_list;
 		nh.getParam("controller_list", tmp_list);
@@ -802,6 +819,7 @@ int main(int argc, char **argv) {
 					controller_name + "/heartbeat", 1);
 
 			xamla_sysmon_msgs::HeartBeat msg;
+			last_status_request = ros::Time::now();
 			msg.header.stamp = ros::Time::now();
 
 			msg.status =
@@ -811,12 +829,13 @@ int main(int argc, char **argv) {
 			g_pub_heartbeat.publish(msg);
 
 			// Services
-			ros::ServiceServer setAccSS, setForceSS, stopSS, ackSS, getStatusSS;
+			ros::ServiceServer setAccSS, setForceSS, stopSS, ackSS, getStatusSS, fastStopSS;
 			setAccSS = nh.advertiseService(controller_name + "/set_acceleration", setAccSrv);
 			setForceSS = nh.advertiseService(controller_name + "/set_force", setForceSrv);
 			stopSS = nh.advertiseService(controller_name + "/soft_stop", stopSrv);
 			ackSS = nh.advertiseService(controller_name + "/acknowledge_error", ackSrv);
 			getStatusSS = nh.advertiseService(controller_name + "/get_gripper_status", getGripperStatusService);
+			fastStopSS = nh.advertiseService(controller_name + "/fast_stop", fastStopSrv);
 
 			// Open action server
 			action_server = new GripperActionServer(nh,
@@ -858,6 +877,7 @@ int main(int argc, char **argv) {
 			stopSS.shutdown();
 			ackSS.shutdown();
 			getStatusSS.shutdown();
+			fastStopSS.shutdown();
 			g_pub_state.shutdown();
 			g_pub_joint.shutdown();
 		}

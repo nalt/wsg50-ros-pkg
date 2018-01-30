@@ -127,6 +127,7 @@ void GripperCommunication::sendCommand(msg_t& message,
 	bool stop_command = message.id
 			== (unsigned char) WellKnownMessageId::SOFT_STOP
 			|| message.id == (unsigned char) WellKnownMessageId::EMERGENCY_STOP;
+
 	if ((stop_command == false) && (this->currentCommand != nullptr)) {
 		throw MessageQueueFull();
 	}
@@ -341,28 +342,6 @@ void GripperCommunication::updateCommandState(unsigned char messageId,
 }
 
 
-void GripperCommunication::soft_stop(GripperCallback callback) {
-	//auto m = this->createSoftStopMessage().toMessage();
-	unsigned char payload[0];
-	msg_t m;
-	m.id = (unsigned char) WellKnownMessageId::SOFT_STOP;
-	m.len = 0;
-	m.data = payload;
-
-	this->sendCommand(m, callback);
-}
-
-void GripperCommunication::emergency_stop(GripperCallback callback) {
-	//auto m = this->createEmergencyStopMessage().toMessage();
-	unsigned char payload[0];
-	msg_t m;
-	m.id = (unsigned char) WellKnownMessageId::EMERGENCY_STOP;
-	m.len = 0;
-	m.data = payload;
-
-	this->sendCommand(m, callback);
-}
-
 void GripperCommunication::homing(GripperCallback callback) {
 	//auto m = this->createHomingMessage().toMessage();
 	unsigned char payload[1];
@@ -375,7 +354,7 @@ void GripperCommunication::homing(GripperCallback callback) {
 	this->sendCommand(m, callback);
 }
 
-void GripperCommunication::acknowledge_error(GripperCallback callback) {
+void GripperCommunication::acknowledge_error() {
 	//auto m = this->createAcknowledgeMessage().toMessage();
 	unsigned char payload[3];
 	payload[0] = 0x61;
@@ -387,10 +366,32 @@ void GripperCommunication::acknowledge_error(GripperCallback callback) {
 	m.len = 3;
 	m.data = payload;
 
-	this->sendCommand(m, callback);
+	this->sendCommandSynchronous(m);
 }
 
-void GripperCommunication::set_force(float force, GripperCallback callback) {
+void GripperCommunication::soft_stop() {
+	//auto m = this->createSoftStopMessage().toMessage();
+	unsigned char payload[0];
+	msg_t m;
+	m.id = (unsigned char) WellKnownMessageId::SOFT_STOP;
+	m.len = 0;
+	m.data = payload;
+
+	this->sendCommandSynchronous(m);
+}
+
+void GripperCommunication::fast_stop() {
+	//auto m = this->createEmergencyStopMessage().toMessage();
+	unsigned char payload[0];
+	msg_t m;
+	m.id = (unsigned char) WellKnownMessageId::EMERGENCY_STOP;
+	m.len = 0;
+	m.data = payload;
+
+	this->sendCommandSynchronous(m);
+}
+
+void GripperCommunication::set_force(float force) {
 	//auto m = this->createSetForceMessage(force).toMessage();
 	unsigned char payload[4];
 	memcpy( &payload[0], &force, sizeof( float ) );
@@ -403,7 +404,7 @@ void GripperCommunication::set_force(float force, GripperCallback callback) {
 	this->sendCommandSynchronous(m);
 }
 
-void GripperCommunication::set_acceleration(float acceleration, GripperCallback callback) {
+void GripperCommunication::set_acceleration(float acceleration) {
 	//auto m = this->createSetAccelerationMessage(acceleration).toMessage();
 	unsigned char payload[4];
 	memcpy( &payload[0], &acceleration, sizeof( float ) );

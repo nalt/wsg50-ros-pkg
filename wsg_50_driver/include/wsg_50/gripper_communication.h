@@ -85,18 +85,21 @@ final {
 		bool acceptsCommands();
 		msg_t processMessages();
 
+		// long running, asynchronous gripper commands
 		void move(float width, float speed, bool stop_on_block,
 				GripperCallback callback = nullptr);
-		void soft_stop(GripperCallback callback = nullptr);
-		void emergency_stop(GripperCallback callback = nullptr);
 		void grasp(float width, float speed,
 				GripperCallback callback = nullptr);
 		void release(float width, float speed, GripperCallback callback =
 				nullptr);
 		void homing(GripperCallback callback = nullptr);
-		void acknowledge_error(GripperCallback callback = nullptr);
-		void set_force(float force, GripperCallback callback = nullptr);
-		void set_acceleration(float acceleration, GripperCallback callback = nullptr);
+
+		// short running, synchronous calls to gripper
+		void soft_stop();
+		void fast_stop();
+		void acknowledge_error();
+		void set_force(float force);
+		void set_acceleration(float acceleration);
 
 		GripperState getState();
 
