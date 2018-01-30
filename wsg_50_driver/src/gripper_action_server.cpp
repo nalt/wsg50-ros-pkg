@@ -72,23 +72,15 @@ void GripperActionServer::shutdown() {
 
 void GripperActionServer::goalCallback(GoalHandle goal_handle) {
 	auto goal = goal_handle.getGoal();
-	bool is_stop_command = (goal->command.command_id
-			== wsg_50_common::Command::SOFT_STOP)
-			|| (goal->command.command_id == wsg_50_common::Command::EMERGENCY_STOP);
 
-	if ((this->gripper_com.acceptsCommands() == false)
-			&& (is_stop_command == false)) {
+	if (this->gripper_com.acceptsCommands() == false) {
 		wsg_50_common::CommandResult result;
 		result.status = this->fillStatus();
 		goal_handle.setRejected(result,
 				"Gripper is already processing a command");
 	} else {
 		if (this->action_state.state != ActionStateCode::NO_GOAL) {
-			if (!is_stop_command) {
-				ROS_WARN("Aborting current goal. This is not supposed to happen.");
-			} else {
-				ROS_WARN("Received STOP command, aborting current goal");
-			}
+			ROS_WARN("Aborting current goal. This is not supposed to happen.");
 			this->current_goal_handle.setAborted();
 		}
 		goal_handle.setAccepted("Accept new gripper command");
@@ -158,76 +150,6 @@ void GripperActionServer::handleCommand(wsg_50_common::Command command,
 	case (wsg_50_common::Command::HOMING): {
 		try {
 			this->gripper_com.homing(
-					[&](msg_t& message) {
-						this->commandCallback(message);
-					});
-		} catch (...) {
-			wsg_50_common::CommandResult result;
-			result.status = this->fillStatus();
-			goal_handle.setAborted(result,
-					"Error while sending the move command to the gripper");
-		}
-		break;
-	}
-	case (wsg_50_common::Command::SOFT_STOP): {
-		try {
-			this->gripper_com.soft_stop(
-					[&](msg_t& message) {
-						this->commandCallback(message);
-					});
-		} catch (...) {
-			wsg_50_common::CommandResult result;
-			result.status = this->fillStatus();
-			goal_handle.setAborted(result,
-					"Error while sending the move command to the gripper");
-		}
-		break;
-	}
-	case (wsg_50_common::Command::EMERGENCY_STOP): {
-		try {
-			this->gripper_com.emergency_stop(
-					[&](msg_t& message) {
-						this->commandCallback(message);
-					});
-		} catch (...) {
-			wsg_50_common::CommandResult result;
-			result.status = this->fillStatus();
-			goal_handle.setAborted(result,
-					"Error while sending the move command to the gripper");
-		}
-		break;
-	}
-	case (wsg_50_common::Command::ACK_ERROR): {
-		try {
-			this->gripper_com.acknowledge_error(
-					[&](msg_t& message) {
-						this->commandCallback(message);
-					});
-		} catch (...) {
-			wsg_50_common::CommandResult result;
-			result.status = this->fillStatus();
-			goal_handle.setAborted(result,
-					"Error while sending the move command to the gripper");
-		}
-		break;
-	}
-	case (wsg_50_common::Command::SET_FORCE): {
-		try {
-			this->gripper_com.set_force(command.force,
-					[&](msg_t& message) {
-						this->commandCallback(message);
-					});
-		} catch (...) {
-			wsg_50_common::CommandResult result;
-			result.status = this->fillStatus();
-			goal_handle.setAborted(result,
-					"Error while sending the move command to the gripper");
-		}
-		break;
-	}
-	case (wsg_50_common::Command::SET_ACCELERATION): {
-		try {
-			this->gripper_com.set_acceleration(command.acceleration,
 					[&](msg_t& message) {
 						this->commandCallback(message);
 					});
