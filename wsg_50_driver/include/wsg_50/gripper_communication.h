@@ -10,18 +10,6 @@
 
 typedef std::function<void(msg_t& response)> GripperCallback;
 
-// thanks https://stackoverflow.com/a/24609331
-template<typename T, typename... Args>
-std::unique_ptr<T> make_unique(Args&&... args) {
-    return std::unique_ptr<T>(new T(std::forward<Args>(args)...));
-}
-
-// thanks https://stackoverflow.com/a/27104183
-template<class T>
-std::unique_ptr<T> copy_unique(const std::unique_ptr<T>& source) {
-	return source ? make_unique < T > (*source) : nullptr;
-}
-
 class CommandSubscription {
 public:
 	char messageId;
@@ -49,39 +37,9 @@ public:
 	GripperCallback callback;
 };
 
-class SmartMessage {
-public:
-	SmartMessage() {
-		id = 0;
-		len = 0;
-		data = std::unique_ptr<unsigned char>(new unsigned char[0]);
-	}
-
-	SmartMessage(const SmartMessage& m) {
-		id = m.id;
-		len = m.len;
-		data = std::unique_ptr<unsigned char>(new unsigned char(m.len));
-		memcpy( &data.get()[0], m.data.get(), sizeof( unsigned char ) * m.len);
-		printf("copy cons\n");
-	}
-
-	unsigned char id;
-	unsigned int len;
-	std::unique_ptr<unsigned char> data;
-
-	msg_t toMessage() {
-		msg_t result;
-		result.id = id;
-		result.len = len;
-		result.data = data.get();
-
-		return result;
-	}
-};
-
 enum class WellKnownMessageId
 	: unsigned char {
-		HOMING = 0x20,
+	HOMING = 0x20,
 	MOVE = 0x21,
 	SOFT_STOP = 0x22,
 	EMERGENCY_STOP = 0x23,
@@ -119,8 +77,6 @@ final {
 		~GripperCommunication() {
 		}
 
-		void sendSmartCommand(SmartMessage& message, GripperCallback callback =
-				nullptr);
 		void sendCommand(msg_t& message, GripperCallback callback = nullptr);
 		void sendCommandSynchronous(msg_t& message);
 		CommandSubscription subscribe(unsigned char messageId,
@@ -141,15 +97,6 @@ final {
 		void acknowledge_error(GripperCallback callback = nullptr);
 		void set_force(float force, GripperCallback callback = nullptr);
 		void set_acceleration(float acceleration, GripperCallback callback = nullptr);
-
-		SmartMessage createMoveMessage(float width, float speed,
-				bool stop_on_block);
-		SmartMessage createHomingMessage();
-		SmartMessage createSoftStopMessage();
-		SmartMessage createAcknowledgeMessage();
-		SmartMessage createEmergencyStopMessage();
-		SmartMessage createSetForceMessage(float force);
-		SmartMessage createSetAccelerationMessage(float acceleration);
 
 		GripperState getState();
 

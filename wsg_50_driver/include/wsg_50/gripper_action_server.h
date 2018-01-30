@@ -22,7 +22,6 @@ class ActionState {
 	public:
 		ActionStateCode state;
 		int return_code;
-		std::queue<SmartMessage> message_queue;
 		int expected_grasping_state;
 };
 
@@ -47,7 +46,6 @@ class GripperActionServer {
 		void goalCallback(GoalHandle goal_handle);
 		void cancelCallback(GoalHandle goal_handle);
 		void handleCommand(wsg_50_common::Command command, GoalHandle& goal_handle);
-		void executeNextCommand();
 
 		void abort();
 		void commandCallback(msg_t& message);

@@ -97,110 +97,6 @@ void GripperCommunication::move(float width, float speed, bool stop_on_block,
 	this->sendCommand(message, callback);
 }
 
-SmartMessage GripperCommunication::createMoveMessage(float width, float speed, bool stop_on_block) {
-	unsigned char payload_length = 9;
-	SmartMessage message;
-	message.data = std::unique_ptr<unsigned char>(new unsigned char(payload_length));
-	unsigned char* payload = message.data.get();
-
-	// Set flags: Absolute movement (bit 0 is 0), stop on block (bit 1 is 1).
-	payload[0] = 0x00;
-	if (stop_on_block)
-		payload[0] |= 0x02;
-
-	// Copy target width and speed
-	memcpy(&payload[1], &width, sizeof(float));
-	memcpy(&payload[5], &speed, sizeof(float));
-
-	message.id = (unsigned char) WellKnownMessageId::MOVE;
-	message.len = payload_length;
-
-	return message;
-}
-
-SmartMessage GripperCommunication::createSetForceMessage(float force) {
-	unsigned char payload_length = 4;
-	SmartMessage message;
-	message.data = std::unique_ptr<unsigned char>(new unsigned char(payload_length));
-	unsigned char* payload = message.data.get();
-
-	// Copy target width and speed
-	memcpy( &payload[0], &force, sizeof( float ) );
-
-	message.id = (unsigned char) WellKnownMessageId::SET_GRASP_FORCE;
-	message.len = payload_length;
-
-	return message;
-}
-
-SmartMessage GripperCommunication::createSetAccelerationMessage(float acceleration) {
-	unsigned char payload_length = 4;
-	SmartMessage message;
-	message.data = std::unique_ptr<unsigned char>(new unsigned char(payload_length));
-	unsigned char* payload = message.data.get();
-
-	// Copy target width and speed
-	memcpy( &payload[0], &acceleration, sizeof( float ) );
-
-	message.id = (unsigned char) WellKnownMessageId::SET_ACCELERATION;
-	message.len = payload_length;
-
-	return message;
-}
-
-SmartMessage GripperCommunication::createHomingMessage(){
-	unsigned char payload_length = 1;
-	SmartMessage message;
-	message.data = std::unique_ptr<unsigned char>(new unsigned char(payload_length));
-	unsigned char* payload = message.data.get();
-
-	// Set flags: Homing direction (0: default, 1: widthitive movement, 2: negative movement).
-	payload[0] = 0x00;
-
-	message.id = (unsigned char) WellKnownMessageId::HOMING;
-	message.len = payload_length;
-
-	return message;
-}
-
-SmartMessage GripperCommunication::createSoftStopMessage(){
-	unsigned char payload_length = 0;
-	SmartMessage message;
-	message.data = std::unique_ptr<unsigned char>(new unsigned char(payload_length));
-
-	message.id = (unsigned char) WellKnownMessageId::SOFT_STOP;
-	message.len = payload_length;
-
-	return message;
-}
-
-SmartMessage GripperCommunication::createAcknowledgeMessage(){
-	unsigned char payload_length = 3;
-	SmartMessage message;
-	message.data = std::unique_ptr<unsigned char>(new unsigned char(payload_length));
-	unsigned char* payload = message.data.get();
-
-	payload[0] = 0x61;
-	payload[1] = 0x63;
-	payload[2] = 0x6B;
-
-	message.id = (unsigned char) WellKnownMessageId::ACK_ERROR;
-	message.len = payload_length;
-
-	return message;
-}
-
-SmartMessage GripperCommunication::createEmergencyStopMessage(){
-	unsigned char payload_length = 0;
-	SmartMessage message;
-	message.data = std::unique_ptr<unsigned char>(new unsigned char(payload_length));
-
-	message.id = (unsigned char) WellKnownMessageId::EMERGENCY_STOP;
-	message.len = payload_length;
-
-	return message;
-}
-
 CommandSubscription GripperCommunication::subscribe(unsigned char messageId,
 		GripperCallback newCallback) {
 	auto listenersIterator = this->callbacks.find(messageId);
@@ -224,12 +120,6 @@ CommandSubscription GripperCommunication::subscribe(unsigned char messageId,
 	listener.listenerId = listenerId;
 
 	return listener;
-}
-
-void GripperCommunication::sendSmartCommand(SmartMessage& message, GripperCallback callback) {
-	msg_t m = message.toMessage();
-	printf("Smart id: %\d, len: %d\n", message.id, message.len);
-	this->sendCommand(m, callback);
 }
 
 void GripperCommunication::sendCommand(msg_t& message,

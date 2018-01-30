@@ -90,8 +90,6 @@ void GripperActionServer::goalCallback(GoalHandle goal_handle) {
 				ROS_WARN("Received STOP command, aborting current goal");
 			}
 			this->current_goal_handle.setAborted();
-			std::queue<SmartMessage> empty;
-			std::swap(this->action_state.message_queue, empty);
 		}
 		goal_handle.setAccepted("Accept new gripper command");
 		ROS_INFO("Accepted goal");
@@ -241,20 +239,6 @@ void GripperActionServer::handleCommand(wsg_50_common::Command command,
 		}
 		break;
 	}
-	}
-}
-
-void GripperActionServer::executeNextCommand() {
-	printf("Command queue\n");
-	if (this->action_state.state == ActionStateCode::AWAIT_COMMAND) {
-		if (this->action_state.message_queue.size() > 0){
-			auto& message = this->action_state.message_queue.front();
-			this->action_state.message_queue.pop();
-			printf("Qeueu: Send message id %d\n", message.id);
-			this->gripper_com.sendSmartCommand(message);
-		} else {
-			this->action_state.state = ActionStateCode::AWAIT_STATUS_UPDATE;
-		}
 	}
 }
 
