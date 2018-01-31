@@ -111,6 +111,9 @@ int msg_receive( msg_t *msg )
 		res = interface->read( header, 1 );
 		if ( header[0] == MSG_PREAMBLE_BYTE ) {
 			sync++;
+		} else if ((res == -1) || (res == 0)) {
+			printf("Failed to read data\n");
+			return -1;
 		} else {
 			sync = 0;
 		}

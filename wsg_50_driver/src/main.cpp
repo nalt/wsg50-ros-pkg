@@ -92,6 +92,9 @@ GripperActionServer* action_server = nullptr;
 ros::Time last_publish = ros::Time(0);
 std::string prefix;
 sensor_msgs::JointState joint_states;
+std::string ip, protocol;
+int port;
+ros::Time last_connection_try;
 
 //------------------------------------------------------------------------
 // Unit testing
@@ -657,11 +660,27 @@ void loop_cb(const ros::TimerEvent& ev) {
 
 	switch (node_state.get()) {
 	case (NodeStateType::NOMINAL): {
+		if ((gripperState.connection_state == ConnectionState::NOT_CONNECTED)
+				|| (gripperState.connection_state == ConnectionState::DROPPED)) {
+			if (ros::Time::now().toSec() - last_connection_try.toSec() > 0.1) {
+				last_connection_try = ros::Time::now();
+				try {
+					ROS_INFO("Try to connect to %s:%d using %s", ip, port, protocol);
+					gripperCom.connectToGripper(protocol, ip, port);
+					ROS_INFO("Connected");
+				} catch (std::runtime_error& ex) {
+					ROS_WARN("Connection failed: %s", ex.what());
+				}
+			}
+		}
+
 		action_server->doWork();
 
 		heartbeat_msg.header.stamp = ros::Time::now();
 		if ((gripperState.grasping_state == wsg_50_common::Status::UNKNOWN)
-				|| (gripperState.grasping_state == wsg_50_common::Status::ERROR)) {
+				|| (gripperState.grasping_state == wsg_50_common::Status::ERROR)
+				|| (gripperState.connection_state != ConnectionState::CONNECTED)
+		) {
 			heartbeat_msg.status =
 					static_cast<int>(TopicHeartbeatStatus::TopicCode::INTERNAL_ERROR);
 			heartbeat_msg.details = "Gripper is in unknown or error state.";
@@ -719,8 +738,8 @@ int main(int argc, char **argv) {
 	ros::NodeHandle nh("~");
 	signal(SIGINT, sigint_handler);
 
-	std::string ip, protocol, com_mode;
-	int port, local_port;
+	std::string com_mode;
+	int local_port;
 	double rate, grasping_force;
 
 	nh.param("ip", ip, std::string("192.168.1.20"));
@@ -749,6 +768,7 @@ int main(int argc, char **argv) {
 
 	bool proceed_with_startup = true;
 	try {
+		last_connection_try = ros::Time::now();
 		gripperCom.connectToGripper(protocol, ip, port);
 	} catch (ProtocolNotSupported& ex) {
 		proceed_with_startup = false;
@@ -840,6 +860,8 @@ int main(int argc, char **argv) {
 			fastStopSS.shutdown();
 			g_pub_state.shutdown();
 			g_pub_joint.shutdown();
+			nh.shutdown();
+			gripperCom.shutdown();
 		}
 	} else {
 		ROS_ERROR(
@@ -848,12 +870,10 @@ int main(int argc, char **argv) {
 
 	ROS_INFO("Exiting...");
 
-	gripperCom.shutdown();
 	g_mode_periodic = false;
 	g_mode_script = false;
 	g_mode_polling = false;
 	sleep(1);
-	gripperCom.disconnectFromGripper(true);
 
 	return 0;
 }

@@ -96,7 +96,7 @@ void GripperCommunication::disconnectFromGripper(bool announceDisconnect) {
 		}
 	}
 
-	cmd_disconnect();
+	msg_close();
 }
 
 void GripperCommunication::grasp(float width, float speed,
@@ -250,11 +250,13 @@ void GripperCommunication::unregisterListener(unsigned char messageId,
 
 void GripperCommunication::processMessages(int max_number_of_messages) {
 	int processed_messages = 0;
-	while ((msg_available() == 0) && (processed_messages < max_number_of_messages)) { // message available
+	int messages_available = msg_available();
+	while ((messages_available == 1) && (processed_messages < max_number_of_messages)) { // message available
 		msg_t message;
 		int result = msg_receive(&message);
 
 		if (result == -1) {
+			this->gripper_state.connection_state = ConnectionState::DROPPED;
 			throw MessageReceiveFailed();
 		}
 
@@ -286,6 +288,11 @@ void GripperCommunication::processMessages(int max_number_of_messages) {
 		}
 
 		processed_messages += 1;
+		messages_available = msg_available();
+	}
+
+	if (messages_available == -1) {
+		this->gripper_state.connection_state = ConnectionState::DROPPED;
 	}
 }
 
@@ -378,6 +385,7 @@ void GripperCommunication::forceCallback(msg_t& message) {
 
 void GripperCommunication::shutdown() {
 	this->running = false;
+	this->disconnectFromGripper(true);
 	for (auto it = this->subscriptions.begin(); it != this->subscriptions.end();
 			++it) {
 		this->unregisterListener(it->messageId, it->listenerId);

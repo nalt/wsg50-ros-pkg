@@ -91,7 +91,7 @@ final {
 		}
 
 		void sendCommand(msg_t& message, GripperCallback callback = nullptr);
-		void sendCommandSynchronous(msg_t& message, int timeout_in_ms = 3000);
+		void sendCommandSynchronous(msg_t& message, int timeout_in_ms = 1000);
 		CommandSubscription subscribe(unsigned char messageId,
 				GripperCallback callback);
 		void unregisterListener(unsigned char messageId, int listenerId);
