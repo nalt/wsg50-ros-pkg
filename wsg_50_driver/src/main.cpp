@@ -43,8 +43,6 @@
 #include <chrono>
 
 #include "wsg_50/common.h"
-#include "wsg_50/cmd.h"
-#include "wsg_50/msg.h"
 #include "wsg_50/functions.h"
 #include "wsg_50/gripper_communication.h"
 #include "wsg_50/gripper_action_server.h"
@@ -658,7 +656,7 @@ void loop_cb(const ros::TimerEvent& ev) {
 	auto gripperState = gripperCom.getState();
 
 	switch (node_state.get()) {
-	case (NodeStateType::Nominal): {
+	case (NodeStateType::NOMINAL): {
 		action_server->doWork();
 
 		heartbeat_msg.header.stamp = ros::Time::now();
@@ -724,21 +722,19 @@ int main(int argc, char **argv) {
 	std::string ip, protocol, com_mode;
 	int port, local_port;
 	double rate, grasping_force;
-	bool use_udp = false;
 
 	nh.param("ip", ip, std::string("192.168.1.20"));
 	nh.param("port", port, 1000);
 	nh.param("local_port", local_port, 1501);
-	nh.param("protocol", protocol, std::string(""));
+	nh.param("protocol", protocol, std::string("tcp"));
 	nh.param("com_mode", com_mode, std::string(""));
 	nh.param("rate", rate, 1.0); // With custom script, up to 30Hz are possible
 	nh.param("grasping_force", grasping_force, 0.0);
 	nh.param("prefix", prefix, std::string(""));
 
-	if (protocol == "udp")
-		use_udp = true;
-	else
+	if (protocol == "tcp")
 		protocol = "tcp";
+
 	if (com_mode == "script")
 		g_mode_script = true;
 	else if (com_mode == "auto_update")
@@ -751,14 +747,16 @@ int main(int argc, char **argv) {
 	ROS_INFO("Connecting to %s:%d (%s); communication mode: %s ...", ip.c_str(),
 			port, protocol.c_str(), com_mode.c_str());
 
-	// Connect to device using TCP/USP
-	int res_con;
-	if (!use_udp)
-		res_con = cmd_connect_tcp(ip.c_str(), port);
-	else
-		res_con = cmd_connect_udp(local_port, ip.c_str(), port);
+	bool proceed_with_startup = true;
+	try {
+		gripperCom.connectToGripper(protocol, ip, port);
+	} catch (ProtocolNotSupported& ex) {
+		proceed_with_startup = false;
+	} catch (...) {
 
-	if (res_con == 0) {
+	}
+
+	if (proceed_with_startup == true) {
 		ros::Duration(1).sleep();
 		printf("Register callback\n");
 
@@ -813,9 +811,8 @@ int main(int argc, char **argv) {
 			action_server->start();
 
 			try {
-				gripperCom.activateAutomaticValueUpdates();
 				printf("Spinning\n");
-				node_state.set(NodeStateType::Nominal);
+				node_state.set(NodeStateType::NOMINAL);
 
 				// Start ROS loop
 				ros::spin();
@@ -856,7 +853,7 @@ int main(int argc, char **argv) {
 	g_mode_script = false;
 	g_mode_polling = false;
 	sleep(1);
-	cmd_disconnect();
+	gripperCom.disconnectFromGripper(true);
 
 	return 0;
 }

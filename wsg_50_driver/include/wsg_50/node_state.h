@@ -1,12 +1,12 @@
 #ifndef GRIPPER_GENERAL_STATE_H_
 #define GRIPPER_GENERAL_STATE_H_
 
-enum class NodeStateType: uint32_t {
-	Start = 0,
-	StartingGripValues = 1,
-	StartingOpeningValues = 2,
-	Nominal = 100,
-	Error = 10000
+enum class NodeStateType: int32_t {
+	UNKOWN = -1,
+	START = 0,
+	CONNECTING = 1,
+	NOMINAL = 2,
+	ERROR = 3
 };
 
 class NodeState {

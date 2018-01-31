@@ -18,6 +18,13 @@ public:
 	int listenerId;
 };
 
+enum class ConnectionState: unsigned char {
+	NOT_CONNECTED = 0,
+	CONNECTING = 1,
+	CONNECTED = 2,
+	DROPPED = 3
+};
+
 class GripperState {
 public:
 	float width;
@@ -25,6 +32,7 @@ public:
 	float force;
 	int32_t grasping_state;
 	int32_t system_state;
+	ConnectionState connection_state;
 };
 
 class CommandState {
@@ -39,8 +47,11 @@ public:
 	GripperCallback callback;
 };
 
+
+
 enum class WellKnownMessageId
 	: unsigned char {
+	ANNOUNCE_DISCONNECT = 0x07,
 	HOMING = 0x20,
 	MOVE = 0x21,
 	SOFT_STOP = 0x22,
@@ -80,12 +91,12 @@ final {
 		}
 
 		void sendCommand(msg_t& message, GripperCallback callback = nullptr);
-		void sendCommandSynchronous(msg_t& message, int timeout_in_ms = 1000);
+		void sendCommandSynchronous(msg_t& message, int timeout_in_ms = 3000);
 		CommandSubscription subscribe(unsigned char messageId,
 				GripperCallback callback);
 		void unregisterListener(unsigned char messageId, int listenerId);
 		bool acceptsCommands();
-		msg_t processMessages();
+		void processMessages(int max_number_of_messages = 100);
 
 		// long running, asynchronous gripper commands
 		void move(float width, float speed, bool stop_on_block,
@@ -102,6 +113,9 @@ final {
 		void acknowledge_error();
 		void set_force(float force);
 		void set_acceleration(float acceleration);
+
+		void connectToGripper(std::string protocol, std::string ip, int port);
+		void disconnectFromGripper(bool announceDisconnect);
 		void shutdown();
 
 		GripperState getState();
@@ -128,6 +142,7 @@ final {
 			gripper_state.width = -1;
 			gripper_state.grasping_state = -1;
 			gripper_state.system_state = -1;
+			gripper_state.connection_state = ConnectionState::NOT_CONNECTED;
 			running = true;
 		}
 
@@ -174,6 +189,20 @@ final {
 	public:
 		MessageTimedOut() :
 				std::runtime_error("MessageTimedOut") {
+		}
+	};
+
+	class ProtocolNotSupported: public std::runtime_error {
+	public:
+		ProtocolNotSupported() :
+				std::runtime_error("ProtocolNotSupported") {
+		}
+	};
+
+	class ConnectionError: public std::runtime_error {
+	public:
+		ConnectionError() :
+				std::runtime_error("ConnectionError") {
 		}
 	};
 

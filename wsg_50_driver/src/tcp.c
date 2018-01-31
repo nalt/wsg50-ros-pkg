@@ -51,6 +51,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <poll.h>
 
 #include "wsg_50/interface.h"
 #include "wsg_50/tcp.h"
@@ -77,11 +78,12 @@ const interface_t tcp =
 	.open = &tcp_open,
 	.close = &tcp_close,
 	.read = &tcp_read,
-	.write = &tcp_write
+	.write = &tcp_write,
+	.data_available = &tcp_data_available
 };
 
 static tcp_conn_t conn;
-
+static struct pollfd tcp_poll_set[1];
 
 //------------------------------------------------------------------------
 // Local function prototypes
@@ -133,6 +135,9 @@ int tcp_open( const void *params )
     res = connect( conn.sock, (struct sockaddr *) &conn.si_server, sizeof(conn.si_server) );
     if ( res < 0 ) return -1;
 
+    tcp_poll_set[0].fd = conn.sock;
+    tcp_poll_set[0].events = POLLIN;
+
     return 0;
 }
 
@@ -145,6 +150,7 @@ int tcp_open( const void *params )
 
 void tcp_close( void )
 {
+	tcp_poll_set[0].fd = NULL;
 	close( conn.sock );
 	conn.sock = 0;
 }
@@ -199,6 +205,20 @@ int tcp_write( unsigned char *buf, unsigned int len )
     }
 }
 
+/**
+ * Check if the socket has data to read
+ * @return 0 if data is available, -1 otherwise
+ */
+
+int tcp_data_available(unsigned int timeout)
+{
+	poll(tcp_poll_set, 1, timeout);
+	if( (tcp_poll_set[0].fd != NULL) && (tcp_poll_set[0].revents & POLLIN) ) {
+		return 0;
+	}
+
+	return -1;
+}
 
 //------------------------------------------------------------------------
 // Test implementation

@@ -1,17 +1,22 @@
 #include "wsg_50/gripper_communication.h"
 #include "wsg_50/functions.h"
+#include "wsg_50/cmd.h"
+#include "wsg_50/msg.h"
+
 #include <chrono>
 #include <thread>
 
 bool GripperCommunication::acceptsCommands() {
-	return (this->currentCommand == nullptr) && (this->running == true) ;
+	return (this->currentCommand == nullptr) && (this->running == true)
+			&& (this->getState().connection_state == ConnectionState::CONNECTED);
 }
 
 void GripperCommunication::activateAutomaticValueUpdates() {
-	int interval_ms = 90;
+	int interval_ms = 94;
 
 	printf("Request updates for grip state\n");
-	auto subcription = this->subscribe((unsigned char) WellKnownMessageId::GRIPPING_STATE,
+	auto subcription = this->subscribe(
+			(unsigned char) WellKnownMessageId::GRIPPING_STATE,
 			[&](msg_t& message) {this->graspingStateCallback(message);});
 	this->activateAutoUpdates(
 			(unsigned char) WellKnownMessageId::GRIPPING_STATE, interval_ms);
@@ -21,23 +26,22 @@ void GripperCommunication::activateAutomaticValueUpdates() {
 	this->subscribe((unsigned char) WellKnownMessageId::OPENING_VALUES,
 			[&](msg_t& message) {this->widthCallback(message);});
 	this->activateAutoUpdates(
-			(unsigned char) WellKnownMessageId::OPENING_VALUES, interval_ms + 5);
+			(unsigned char) WellKnownMessageId::OPENING_VALUES,
+			interval_ms + 2);
 	this->subscriptions.push_back(subcription);
 
 	printf("Request updates for force values\n");
-	this->subscribe(
-			(unsigned char) WellKnownMessageId::FORCE_VALUES,
+	this->subscribe((unsigned char) WellKnownMessageId::FORCE_VALUES,
 			[&](msg_t& m) {this->forceCallback(m);});
-	this->activateAutoUpdates(
-			(unsigned char) WellKnownMessageId::FORCE_VALUES, interval_ms + 10);
+	this->activateAutoUpdates((unsigned char) WellKnownMessageId::FORCE_VALUES,
+			interval_ms + 4);
 	this->subscriptions.push_back(subcription);
 
 	printf("Request updates for speed values\n");
-	this->subscribe(
-			(unsigned char) WellKnownMessageId::SPEED_VALUES,
+	this->subscribe((unsigned char) WellKnownMessageId::SPEED_VALUES,
 			[&](msg_t& m) {this->speedCallback(m);});
-	this->activateAutoUpdates(
-			(unsigned char) WellKnownMessageId::SPEED_VALUES, interval_ms + 15);
+	this->activateAutoUpdates((unsigned char) WellKnownMessageId::SPEED_VALUES,
+			interval_ms + 6);
 	this->subscriptions.push_back(subcription);
 }
 
@@ -52,6 +56,47 @@ int GripperCommunication::decodeStatus(msg_t& message) {
 
 GripperState GripperCommunication::getState() {
 	return this->gripper_state;
+}
+
+void GripperCommunication::connectToGripper(std::string protocol, std::string ip, int port) {
+	// Connect to device using TCP/USP
+	if (protocol == "tcp") {
+		int res_con = cmd_connect_tcp(ip.c_str(), port);
+		if (res_con != 0) {
+			ROS_WARN("Could not connect to gripper");
+			this->gripper_state.connection_state = ConnectionState::DROPPED;
+			throw ConnectionError();
+		}
+		try {
+			this->activateAutomaticValueUpdates();
+		} catch (...) {
+			ROS_WARN("Establishing connection failed: Could not request automatic value updates");
+			this->gripper_state.connection_state = ConnectionState::DROPPED;
+		}
+		this->gripper_state.connection_state = ConnectionState::CONNECTED;
+	} else {
+		ROS_ERROR("Protocol %s is not supported", protocol);
+		//res_con = cmd_connect_udp(local_port, ip.c_str(), port);
+		throw ProtocolNotSupported();
+	}
+}
+
+void GripperCommunication::disconnectFromGripper(bool announceDisconnect) {
+	if (announceDisconnect) {
+		unsigned char payload[0];
+		msg_t m;
+		m.id = (unsigned char) WellKnownMessageId::ANNOUNCE_DISCONNECT;
+		m.len = 0;
+		m.data = payload;
+
+		try {
+			this->sendCommandSynchronous(m);
+		} catch (...) {
+			ROS_WARN("Could not announce disconnect to gripper. Will proceed in closing the connection. This might put the gripper into fast stop mode.");
+		}
+	}
+
+	cmd_disconnect();
 }
 
 void GripperCommunication::grasp(float width, float speed,
@@ -171,15 +216,21 @@ void GripperCommunication::sendCommandSynchronous(msg_t& message,
 
 	msg_t received;
 	auto start_time = ros::Time::now().toSec();
+	bool received_response = false;
+	auto subscription = this->subscribe(message.id, [&](msg_t& m){received_response = true;});
 	do {
-		received = processMessages();
-		printf("<-- received %d\n", received.id);
+		processMessages();
+
 		std::chrono::milliseconds timespan(1);
 		std::this_thread::sleep_for(timespan);
+
 		if ((ros::Time::now().toSec() - start_time) * 1000 > timeout_in_ms) {
+			this->unregisterListener(subscription.messageId, subscription.listenerId);
 			throw MessageTimedOut();
 		}
-	} while (message.id != received.id);
+	} while (received_response == false);
+
+	this->unregisterListener(subscription.messageId, subscription.listenerId);
 }
 
 void GripperCommunication::unregisterListener(unsigned char messageId,
@@ -197,43 +248,45 @@ void GripperCommunication::unregisterListener(unsigned char messageId,
 	}
 }
 
-msg_t GripperCommunication::processMessages() {
-	msg_t message;
+void GripperCommunication::processMessages(int max_number_of_messages) {
+	int processed_messages = 0;
+	while ((msg_available() == 0) && (processed_messages < max_number_of_messages)) { // message available
+		msg_t message;
+		int result = msg_receive(&message);
 
-	int result = msg_receive(&message);
+		if (result == -1) {
+			throw MessageReceiveFailed();
+		}
 
-	if (result == -1) {
-		throw MessageReceiveFailed();
-	}
+		//printf("-- Received id: %d, len: %d\n", message.id, message.len);
 
-	//printf("-- Received id: %d, len: %d\n", message.id, message.len);
+		GripperCallback callback = nullptr;
+		if ((this->currentCommand != nullptr)
+				&& (this->currentCommand.get()->message.id == message.id)) {
+			auto status = (status_t) make_short(message.data[0], message.data[1]);
+			if (status != E_CMD_PENDING) {
+				printf("-- Clear message id %d\n", message.id);
+				callback = this->currentCommand.get()->callback;
+				this->currentCommand = nullptr;
 
-	GripperCallback callback = nullptr;
-	if ((this->currentCommand != nullptr)
-			&& (this->currentCommand.get()->message.id == message.id)) {
-		auto status = (status_t) make_short(message.data[0], message.data[1]);
-		if (status != E_CMD_PENDING) {
-			printf("-- Clear message id %d\n", message.id);
-			callback = this->currentCommand.get()->callback;
-			this->currentCommand = nullptr;
-
-			if (status == E_SUCCESS) {
-				this->updateCommandState(message.id, CommandStateCode::SUCCESS);
-			} else {
-				this->updateCommandState(message.id, CommandStateCode::ERROR);
+				if (status == E_SUCCESS) {
+					this->updateCommandState(message.id, CommandStateCode::SUCCESS);
+				} else {
+					this->updateCommandState(message.id, CommandStateCode::ERROR);
+				}
 			}
 		}
+
+		this->callbackListeners((unsigned char) WellKnownMessageId::WILDCARD,
+				message);
+		this->callbackListeners(message.id, message);
+
+		if (callback != nullptr) {
+			callback(message);
+		}
+
+		processed_messages += 1;
 	}
-
-	this->callbackListeners((unsigned char) WellKnownMessageId::WILDCARD,
-			message);
-	this->callbackListeners(message.id, message);
-
-	if (callback != nullptr) {
-		callback(message);
-	}
-
-	return message;
 }
 
 bool GripperCommunication::lastCommandReturnedSuccess(
@@ -325,7 +378,8 @@ void GripperCommunication::forceCallback(msg_t& message) {
 
 void GripperCommunication::shutdown() {
 	this->running = false;
-	for (auto it = this->subscriptions.begin(); it != this->subscriptions.end(); ++it) {
+	for (auto it = this->subscriptions.begin(); it != this->subscriptions.end();
+			++it) {
 		this->unregisterListener(it->messageId, it->listenerId);
 	}
 }

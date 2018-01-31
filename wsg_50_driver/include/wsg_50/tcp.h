@@ -85,6 +85,7 @@ int tcp_open( const void *params );
 void tcp_close( void );
 int tcp_read( unsigned char *buf, unsigned int len );
 int tcp_write( unsigned char *buf, unsigned int len );
+int tcp_data_available( unsigned int );
 
 
 #ifdef __cplusplus
