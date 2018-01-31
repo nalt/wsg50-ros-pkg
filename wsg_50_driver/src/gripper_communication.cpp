@@ -4,27 +4,42 @@
 #include <thread>
 
 bool GripperCommunication::acceptsCommands() {
-	return this->currentCommand == nullptr;
+	return (this->currentCommand == nullptr) && (this->running == true) ;
 }
 
-void GripperCommunication::activateOpeningValueUpdates(const int interval_ms) {
-	printf("Request updates for opening values\n");
-	this->subscribe(
-					(unsigned char) WellKnownMessageId::OPENING_VALUES,
-					[&](msg_t& message){this->widthCallback(message);});
-	this->activateAutoUpdates(
-			(unsigned char) WellKnownMessageId::OPENING_VALUES, interval_ms);
-}
+void GripperCommunication::activateAutomaticValueUpdates() {
+	int interval_ms = 90;
 
-void GripperCommunication::activateGripStateUpdates(const int interval_ms) {
 	printf("Request updates for grip state\n");
-	this->subscribe(
-					(unsigned char) WellKnownMessageId::GRIPPING_STATE,
-					[&](msg_t& message){this->graspingStateCallback(message);});
+	auto subcription = this->subscribe((unsigned char) WellKnownMessageId::GRIPPING_STATE,
+			[&](msg_t& message) {this->graspingStateCallback(message);});
 	this->activateAutoUpdates(
 			(unsigned char) WellKnownMessageId::GRIPPING_STATE, interval_ms);
-}
+	this->subscriptions.push_back(subcription);
 
+	printf("Request updates for opening values\n");
+	this->subscribe((unsigned char) WellKnownMessageId::OPENING_VALUES,
+			[&](msg_t& message) {this->widthCallback(message);});
+	this->activateAutoUpdates(
+			(unsigned char) WellKnownMessageId::OPENING_VALUES, interval_ms + 5);
+	this->subscriptions.push_back(subcription);
+
+	printf("Request updates for force values\n");
+	this->subscribe(
+			(unsigned char) WellKnownMessageId::FORCE_VALUES,
+			[&](msg_t& m) {this->forceCallback(m);});
+	this->activateAutoUpdates(
+			(unsigned char) WellKnownMessageId::FORCE_VALUES, interval_ms + 10);
+	this->subscriptions.push_back(subcription);
+
+	printf("Request updates for speed values\n");
+	this->subscribe(
+			(unsigned char) WellKnownMessageId::SPEED_VALUES,
+			[&](msg_t& m) {this->speedCallback(m);});
+	this->activateAutoUpdates(
+			(unsigned char) WellKnownMessageId::SPEED_VALUES, interval_ms + 15);
+	this->subscriptions.push_back(subcription);
+}
 
 int GripperCommunication::decodeStatus(msg_t& message) {
 	if (message.len > 0) {
@@ -145,7 +160,8 @@ void GripperCommunication::sendCommand(msg_t& message,
 	printf("-- Send message id: %d, len: %d\n", message.id, message.len);
 }
 
-void GripperCommunication::sendCommandSynchronous(msg_t& message, int timeout_in_ms) {
+void GripperCommunication::sendCommandSynchronous(msg_t& message,
+		int timeout_in_ms) {
 	printf("--> send: %d\n", message.id);
 	int result = msg_send(&message);
 
@@ -274,7 +290,6 @@ void GripperCommunication::requestValueUpdate(const unsigned char messageId) {
 	msg_send(&message);
 }
 
-
 void GripperCommunication::graspingStateCallback(msg_t& message) {
 	if (message.len > 0) {
 		auto status = (status_t) make_short(message.data[0], message.data[1]);
@@ -308,6 +323,13 @@ void GripperCommunication::forceCallback(msg_t& message) {
 	}
 }
 
+void GripperCommunication::shutdown() {
+	this->running = false;
+	for (auto it = this->subscriptions.begin(); it != this->subscriptions.end(); ++it) {
+		this->unregisterListener(it->messageId, it->listenerId);
+	}
+}
+
 void GripperCommunication::widthCallback(msg_t& message) {
 	if (message.len > 0) {
 		auto status = (status_t) make_short(message.data[0], message.data[1]);
@@ -328,7 +350,6 @@ void GripperCommunication::updateCommandState(unsigned char messageId,
 		commandStateIterator->second = state;
 	}
 }
-
 
 void GripperCommunication::homing(GripperCallback callback) {
 	unsigned char payload[1];
@@ -377,7 +398,7 @@ void GripperCommunication::fast_stop() {
 
 void GripperCommunication::set_force(float force) {
 	unsigned char payload[4];
-	memcpy( &payload[0], &force, sizeof( float ) );
+	memcpy(&payload[0], &force, sizeof(float));
 
 	msg_t m;
 	m.id = (unsigned char) WellKnownMessageId::SET_GRASP_FORCE;
@@ -389,7 +410,7 @@ void GripperCommunication::set_force(float force) {
 
 void GripperCommunication::set_acceleration(float acceleration) {
 	unsigned char payload[4];
-	memcpy( &payload[0], &acceleration, sizeof( float ) );
+	memcpy(&payload[0], &acceleration, sizeof(float));
 
 	msg_t m;
 	m.id = (unsigned char) WellKnownMessageId::SET_ACCELERATION;
@@ -398,5 +419,4 @@ void GripperCommunication::set_acceleration(float acceleration) {
 
 	this->sendCommandSynchronous(m);
 }
-
 

@@ -94,7 +94,6 @@ GripperActionServer* action_server = nullptr;
 ros::Time last_publish = ros::Time(0);
 std::string prefix;
 sensor_msgs::JointState joint_states;
-ros::Time last_status_request;
 
 //------------------------------------------------------------------------
 // Unit testing
@@ -659,26 +658,6 @@ void loop_cb(const ros::TimerEvent& ev) {
 	auto gripperState = gripperCom.getState();
 
 	switch (node_state.get()) {
-	case (NodeStateType::StartingGripValues): {
-		if (gripperCom.lastCommandReturnedSuccess(
-				(unsigned char) WellKnownMessageId::GRIPPING_STATE) == true) {
-			try {
-				gripperCom.activateOpeningValueUpdates(100);
-				node_state.set(NodeStateType::StartingOpeningValues);
-			} catch (...) {
-				node_state.set(NodeStateType::Error);
-			}
-		}
-		break;
-	}
-	case (NodeStateType::StartingOpeningValues): {
-		if (gripperCom.lastCommandReturnedSuccess(
-				(unsigned char) WellKnownMessageId::OPENING_VALUES) == true) {
-			ROS_INFO("Gripper state is nominal");
-			node_state.set(NodeStateType::Nominal);
-		}
-		break;
-	}
 	case (NodeStateType::Nominal): {
 		action_server->doWork();
 
@@ -704,14 +683,6 @@ void loop_cb(const ros::TimerEvent& ev) {
 		heartbeat_msg.details = "Drive is in error state.";
 		break;
 	}
-	}
-
-	if (ros::Time::now().toSec() - last_status_request.toSec() > 0.1) {
-		last_status_request = ros::Time::now();
-		gripperCom.requestValueUpdate(
-				(unsigned char) WellKnownMessageId::FORCE_VALUES);
-		gripperCom.requestValueUpdate(
-				(unsigned char) WellKnownMessageId::SPEED_VALUES);
 	}
 
 	bool time_to_publish = ros::Time::now().toSec() - last_publish.toSec() > 0.05;
@@ -819,7 +790,6 @@ int main(int argc, char **argv) {
 					controller_name + "/heartbeat", 1);
 
 			xamla_sysmon_msgs::HeartBeat msg;
-			last_status_request = ros::Time::now();
 			msg.header.stamp = ros::Time::now();
 
 			msg.status =
@@ -843,14 +813,7 @@ int main(int argc, char **argv) {
 			action_server->start();
 
 			try {
-				gripperCom.subscribe(
-						(unsigned char) WellKnownMessageId::FORCE_VALUES,
-						[&](msg_t& m) {gripperCom.forceCallback(m);});
-				gripperCom.subscribe(
-						(unsigned char) WellKnownMessageId::SPEED_VALUES,
-						[&](msg_t& m) {gripperCom.speedCallback(m);});
-				gripperCom.activateGripStateUpdates(100);
-				gripperCom.activateOpeningValueUpdates(105);
+				gripperCom.activateAutomaticValueUpdates();
 				printf("Spinning\n");
 				node_state.set(NodeStateType::Nominal);
 
@@ -888,6 +851,7 @@ int main(int argc, char **argv) {
 
 	ROS_INFO("Exiting...");
 
+	gripperCom.shutdown();
 	g_mode_periodic = false;
 	g_mode_script = false;
 	g_mode_polling = false;

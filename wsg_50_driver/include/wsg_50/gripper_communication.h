@@ -8,6 +8,7 @@
 #include <functional>
 #include <memory>
 #include <cstring>
+#include <vector>
 
 typedef std::function<void(msg_t& response)> GripperCallback;
 
@@ -101,11 +102,11 @@ final {
 		void acknowledge_error();
 		void set_force(float force);
 		void set_acceleration(float acceleration);
+		void shutdown();
 
 		GripperState getState();
 
-		void activateOpeningValueUpdates(const int interval_ms);
-		void activateGripStateUpdates(const int interval_ms);
+		void activateAutomaticValueUpdates();
 		void requestValueUpdate(unsigned char messageId);
 
 		bool lastCommandReturnedSuccess(const unsigned char messageId);
@@ -127,6 +128,7 @@ final {
 			gripper_state.width = -1;
 			gripper_state.grasping_state = -1;
 			gripper_state.system_state = -1;
+			running = true;
 		}
 
 		void activateAutoUpdates(const unsigned char messageId,
@@ -142,7 +144,9 @@ final {
 		std::map<unsigned char, std::map<int, GripperCallback> > callbacks;
 		std::map<unsigned char, CommandStateCode> commandStates;
 		std::shared_ptr<CommandState> currentCommand;
-		GripperState gripper_state;
+		std::vector<CommandSubscription> subscriptions;
+ 		GripperState gripper_state;
+ 		bool running;
 	};
 
 	class MessageQueueFull: public std::runtime_error {
