@@ -2,6 +2,7 @@
 #define GRIPPER_COMM_H_
 
 #include <ros/ros.h>
+#include <wsg_50/gripper_socket.h>
 #include "msg.h"
 #include "common.h"
 #include <map>
@@ -9,6 +10,8 @@
 #include <memory>
 #include <cstring>
 #include <vector>
+#include <chrono>
+#include <thread>
 
 typedef std::function<void(msg_t& response)> GripperCallback;
 
@@ -16,13 +19,6 @@ class CommandSubscription {
 public:
 	char messageId;
 	int listenerId;
-};
-
-enum class ConnectionState: unsigned char {
-	NOT_CONNECTED = 0,
-	CONNECTING = 1,
-	CONNECTED = 2,
-	DROPPED = 3
 };
 
 class GripperState {

@@ -1,0 +1,251 @@
+/*
+ * gripper_socket.cpp
+ *
+ *  Created on: Feb 1, 2018
+ *      Author: noertemann
+ */
+
+#include "ros/ros.h"
+#include "wsg_50/gripper_socket.h"
+#include "wsg_50/checksum.h"
+
+// Byte access
+#define hi( x )    	(unsigned char) ( ((x) >> 8) & 0xff )	// Returns the upper byte of the passed short
+#define lo( x )    	(unsigned char) ( (x) & 0xff )       	// Returns the lower byte of the passed short
+
+GripperSocket::GripperSocket(std::string host, int port){
+	this->running = false;
+	this->buffer_pointer = 0;
+	this->buffer_content_length = 0;
+	this->host = host;
+	this->port = port;
+	this->connection_state = ConnectionState::NOT_CONNECTED;
+	this->previous_connection_state = this->connection_state;
+	this->socket_fd = -1;
+}
+
+void GripperSocket::connectSocket() {
+	sockaddr_in serv_addr;
+
+	int fd = socket(PF_INET, SOCK_STREAM, IPPROTO_TCP);
+	if (fd < 0)
+	{
+		throw SocketCreationError("Could not create socket.");
+	}
+
+	memset(&serv_addr, '0', sizeof(serv_addr));
+	serv_addr.sin_family = AF_INET;
+	serv_addr.sin_port = htons(this->port);
+	std::string hostname = this->host;
+	if(inet_pton(AF_INET, hostname.c_str(), &serv_addr.sin_addr) <= 0)
+	{
+		throw AddressConversionError("Could not convert address into binary format: " + this->host);
+	}
+
+	unsigned int val = 1024;
+    setsockopt(fd, SOL_SOCKET, SO_RCVBUF, (void *) &val, (socklen_t) sizeof(val));
+
+    struct timeval timeout;
+    timeout.tv_sec = TCP_RECEIVE_TIMEOUT_SEC;
+    timeout.tv_usec = 0;
+    setsockopt(fd, SOL_SOCKET, SO_RCVTIMEO, (void *) &timeout, (socklen_t) sizeof(struct timeval));
+
+	if (connect(fd, (struct sockaddr *)&serv_addr, sizeof(serv_addr)) < 0)
+	{
+		throw ConnectionOpenError("Could not open connection to " + this->host + ":" + std::to_string(this->port));
+	}
+
+	/* Set socket to non-blocking */
+	int flags;
+	if ((flags = fcntl(fd, F_GETFL, 0)) < 0)
+	{
+	    throw SocketConfigrurationError("");
+	}
+
+
+	if (fcntl(fd, F_SETFL, flags | O_NONBLOCK) < 0)
+	{
+		throw SocketConfigrurationError("");
+	}
+
+	this->socket_fd = fd;
+}
+
+void GripperSocket::disconnect(){
+	if (this->running == true) {
+		this->running = false;
+		this->read_loop.join();
+	}
+}
+
+ConnectionState GripperSocket::getConnectionState() {
+	return this->connection_state;
+}
+
+std::shared_ptr<Message> GripperSocket::getMessage() {
+	std::lock_guard<std::recursive_mutex> guard(this->buffer_mutex);
+	if (this->buffer_content_length <= 0) {
+		return nullptr;
+	}
+
+	// search preamble
+	uint32_t preamble_count = 0;
+	while ((preamble_count != GripperSocket::MSG_PREAMBLE_SIZE) && (this->buffer_content_length > 0)) {
+		unsigned char b;
+		this->readFromBuffer(1, &b);
+
+		if (b == GripperSocket::MSG_PREABMLE_BYTE) {
+			preamble_count += 1;
+		} else {
+			preamble_count = 0;
+		}
+	}
+
+	// read header
+	if (this->buffer_content_length < GripperSocket::MSG_HEADER_SIZE) {
+		throw NotEnoughDataInBuffer("Could not read message header");
+	}
+	unsigned char header[GripperSocket::MSG_HEADER_SIZE];
+	this->readFromBuffer(GripperSocket::MSG_HEADER_SIZE, header);
+	unsigned char messageId = header[0];
+	unsigned int messageLength = (unsigned short)header[1] | ((unsigned short)header[2] << 8);
+
+	// read payload and checksum
+	unsigned char messageData[messageLength + GripperSocket::MSG_CHECKSUM_SIZE];
+	this->readFromBuffer(messageLength + GripperSocket::MSG_CHECKSUM_SIZE, messageData);
+
+	unsigned short checksum = 0x50f5;	// Checksum over preamble (0xaa 0xaa 0xaa)
+	checksum = checksum_update_crc16(header, GripperSocket::MSG_HEADER_SIZE, checksum);
+	checksum = checksum_update_crc16(messageData, messageLength + GripperSocket::MSG_CHECKSUM_SIZE, checksum);
+
+	if (checksum != 0) {
+		throw ChecksumError("ChecksumError");
+	}
+
+	return std::make_shared<Message>(new Message(messageId, messageLength, messageData));
+}
+
+void GripperSocket::readFromBuffer(int length, unsigned char* target) {
+	std::lock_guard<std::recursive_mutex> guard(this->buffer_mutex);
+	if (this->buffer_content_length < length) {
+		throw NotEnoughDataInBuffer("");
+	}
+
+	for (int i = 0; i < length; i++) {
+		unsigned char b = this->buffer[this->buffer_pointer];
+		this->buffer_pointer = (this->buffer_pointer + 1) % GripperSocket::BUFFER_SIZE;
+		this->buffer_content_length -= 1;
+		target[i] = b;
+	}
+}
+
+void GripperSocket::readLoop() {
+	while (this->running == true)
+	{
+		if (this->connection_state == ConnectionState::CONNECTED)
+		{
+			if (this->previous_connection_state != this->connection_state)
+			{
+				ROS_INFO("Changed connection state from NOT_CONNECTED to CONNECTED");
+			}
+			this->previous_connection_state = this->connection_state;
+
+			if (this->socket_fd > 0)
+			{
+				std::lock_guard<std::recursive_mutex> guard(this->buffer_mutex);
+				int read_bytes = recv(this->socket_fd, this->receive_buffer, GripperSocket::RECEIVE_BUFFER_SIZE, 0);
+				if (read_bytes <= 0) {
+					if ((read_bytes == 0) || ((errno != EWOULDBLOCK) && (errno != EAGAIN)))
+					{
+						this->disconnectSocket();
+						this->connection_state = ConnectionState::NOT_CONNECTED;
+					}
+				} else {
+					if (read_bytes > GripperSocket::BUFFER_SIZE - this->buffer_content_length)
+					{
+						ROS_ERROR("Discarding data from gripper, because the read buffer is full.");
+					}
+					else
+					{
+						printf("- start buf\n");
+						int first_free = (this->buffer_pointer + this->buffer_content_length) % GripperSocket::BUFFER_SIZE;
+
+						int first = std::min((int)GripperSocket::BUFFER_SIZE - first_free, read_bytes);
+						if (first > 0) {
+							memcpy(this->buffer + first_free, this->receive_buffer, first);
+							this->buffer_content_length += first;
+						}
+
+						int second = read_bytes - first;
+						if (second > 0) {
+							memcpy(this->buffer, this->receive_buffer + first, second);
+							this->buffer_content_length += second;
+						}
+					}
+				}
+			}
+		}
+		else if (this->connection_state == ConnectionState::NOT_CONNECTED)
+		{
+			if (this->previous_connection_state != this->connection_state)
+			{
+				ROS_INFO("Changed connection state from CONNECTED to NOT_CONNECTED");
+			}
+			this->previous_connection_state = this->connection_state;
+
+			try
+			{
+				this->connectSocket();
+				this->connection_state = ConnectionState::CONNECTED;
+			} catch (...)
+			{
+				ROS_WARN("Error while connecting to %s:%d using TCP/IP.", this->host.c_str(), this->port);
+			}
+		}
+
+		std::chrono::milliseconds timespan(1);
+		std::this_thread::sleep_for(timespan);
+	}
+}
+
+void GripperSocket::sendMessage(Message& message) {
+	if (this->socket_fd <= 0) {
+		throw SocketNotOpen("");
+	}
+
+	unsigned char raw_message[3 + 3]; // Preamble plus Header
+	unsigned short crc;
+	// Preamble
+	for (int i = 0; i < 3; i++) {
+		raw_message[i] = 0xaa;
+	}
+	raw_message[3 + 0] = message.id;
+	raw_message[3 + 1] = lo(message.length);
+	raw_message[3 + 2] = hi(message.length);
+
+	crc = checksum_crc16(raw_message, 6);
+	crc = checksum_update_crc16( message.data, message.length, crc);
+
+	int raw_message_size = 6 + message.length + 2;
+	unsigned char buf[raw_message_size];
+	memcpy(buf, raw_message, 6);
+	memcpy(buf + 6, message.data, message.length);
+	memcpy(buf + 6 + message.length, (unsigned char*) &crc, 2);
+
+	int result = send(this->socket_fd, buf, raw_message_size, 0);
+	if (result < raw_message_size) {
+		throw SendError("");
+	}
+}
+
+void GripperSocket::startReadLoop() {
+	this->running = true;
+	this->read_loop = std::thread(&GripperSocket::readLoop, this);
+}
+
+void GripperSocket::disconnectSocket() {
+	if (this->socket_fd > 0) {
+		close(this->socket_fd);
+		this->socket_fd = 0;
+	}
+}

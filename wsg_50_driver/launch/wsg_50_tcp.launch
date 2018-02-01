@@ -2,7 +2,9 @@
 <launch>
 
   <!--<node name="wsg50_driver"  pkg="wsg_50_driver" type="wsg_50_ip" launch-prefix="gdbserver localhost:3456">-->
+  <!-- launch-prefix="nice -n -10" -->
   <group ns="xamla">
+  	  <!--<node name="wsg50_driver"  pkg="wsg_50_driver" type="wsg_50_ip" output="screen" launch-prefix="gdbserver localhost:3456" >-->
 	  <node name="wsg50_driver"  pkg="wsg_50_driver" type="wsg_50_ip" output="screen" >
 		<param name="ip" type="string" value="192.168.50.33"/>
 		<param name="port" type="int" value="1000"/>

@@ -3,9 +3,6 @@
 #include "wsg_50/cmd.h"
 #include "wsg_50/msg.h"
 
-#include <chrono>
-#include <thread>
-
 bool GripperCommunication::acceptsCommands() {
 	return (this->currentCommand == nullptr) && (this->running == true)
 			&& (this->getState().connection_state == ConnectionState::CONNECTED);
@@ -64,14 +61,14 @@ void GripperCommunication::connectToGripper(std::string protocol, std::string ip
 		int res_con = cmd_connect_tcp(ip.c_str(), port);
 		if (res_con != 0) {
 			ROS_WARN("Could not connect to gripper");
-			this->gripper_state.connection_state = ConnectionState::DROPPED;
+			this->gripper_state.connection_state = ConnectionState::NOT_CONNECTED;
 			throw ConnectionError();
 		}
 		try {
 			this->activateAutomaticValueUpdates();
 		} catch (...) {
 			ROS_WARN("Establishing connection failed: Could not request automatic value updates");
-			this->gripper_state.connection_state = ConnectionState::DROPPED;
+			this->gripper_state.connection_state = ConnectionState::NOT_CONNECTED;
 		}
 		this->gripper_state.connection_state = ConnectionState::CONNECTED;
 	} else {
@@ -256,7 +253,7 @@ void GripperCommunication::processMessages(int max_number_of_messages) {
 		int result = msg_receive(&message);
 
 		if (result == -1) {
-			this->gripper_state.connection_state = ConnectionState::DROPPED;
+			this->gripper_state.connection_state = ConnectionState::NOT_CONNECTED;
 			throw MessageReceiveFailed();
 		}
 
@@ -292,7 +289,7 @@ void GripperCommunication::processMessages(int max_number_of_messages) {
 	}
 
 	if (messages_available == -1) {
-		this->gripper_state.connection_state = ConnectionState::DROPPED;
+		this->gripper_state.connection_state = ConnectionState::NOT_CONNECTED;
 	}
 }
 

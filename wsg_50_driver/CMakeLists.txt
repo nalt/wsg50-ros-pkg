@@ -34,6 +34,7 @@ set(DRIVER_SOURCES
   src/interface.cpp include/wsg_50/interface.h
   src/gripper_communication.cpp include/wsg_50/gripper_communication.h
   src/gripper_action_server.cpp include/wsg_50/gripper_action_server.h
+  src/gripper_socket.cpp include/wsg_50/gripper_socket.h
   include/wsg_50/node_state.h
   src/main.cpp
   src/msg.c include/wsg_50/msg.h
@@ -59,15 +60,12 @@ add_definitions(-g)
 # C++11 Needed
 include(CheckCXXCompilerFlag)
 
-CHECK_CXX_COMPILER_FLAG("-std=c++11" COMPILER_SUPPORTS_CXX11)
-CHECK_CXX_COMPILER_FLAG("-std=c++0x" COMPILER_SUPPORTS_CXX0X)
+CHECK_CXX_COMPILER_FLAG("-std=c++14" COMPILER_SUPPORTS_CXX14)
 
-if(COMPILER_SUPPORTS_CXX11)
-    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++11")
-elseif(COMPILER_SUPPORTS_CXX0X)
-    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++0x")
+if(COMPILER_SUPPORTS_CXX14)
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++14")
 else()
-    message(FATAL_ERROR "The compiler ${CMAKE_CXX_COMPILER} has no C++11 support. Please use a different C++ compiler.")
+    message(FATAL_ERROR "The compiler ${CMAKE_CXX_COMPILER} has no C++14 support. Please use a different C++ compiler.")
 endif()
 
 add_executable(wsg_50_ip src/main.cpp ${DRIVER_SOURCES})
