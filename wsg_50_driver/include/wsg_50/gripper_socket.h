@@ -20,6 +20,8 @@
 #include <fcntl.h>
 #include <errno.h>
 
+#include "wsg_50/ring_buffer.h"
+
 enum class ConnectionState: unsigned char {
 	NOT_CONNECTED = 0,
 	CONNECTED = 1,
@@ -84,11 +86,9 @@ class GripperSocket {
 		bool tryParseMessage(std::shared_ptr<Message>& message);
 		void readFromBuffer(int length, unsigned char* target);
 
+		RingBuffer readBuffer;
+		RingBuffer writeBuffer;
 		static const uint32_t RECEIVE_BUFFER_SIZE = 1024;
-		static const uint32_t BUFFER_SIZE = 4096;
-		unsigned char buffer[GripperSocket::BUFFER_SIZE];
-		uint32_t buffer_pointer;
-		uint32_t buffer_content_length;
 		unsigned char receive_buffer[RECEIVE_BUFFER_SIZE];
 		std::string host;
 		int port;
@@ -124,13 +124,6 @@ class ConnectionOpenError: public std::runtime_error {
 class SocketNotOpen: public std::runtime_error {
 	public:
 		SocketNotOpen(std::string message) :
-			std::runtime_error(message) {
-		}
-};
-
-class NotEnoughDataInBuffer: public std::runtime_error {
-	public:
-		NotEnoughDataInBuffer(std::string message) :
 			std::runtime_error(message) {
 		}
 };

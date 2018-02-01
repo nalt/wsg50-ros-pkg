@@ -15,8 +15,6 @@
 
 GripperSocket::GripperSocket(std::string host, int port){
 	this->running = false;
-	this->buffer_pointer = 0;
-	this->buffer_content_length = 0;
 	this->host = host;
 	this->port = port;
 	this->connection_state = ConnectionState::NOT_CONNECTED;
@@ -84,15 +82,15 @@ ConnectionState GripperSocket::getConnectionState() {
 
 std::shared_ptr<Message> GripperSocket::getMessage() {
 	std::lock_guard<std::recursive_mutex> guard(this->buffer_mutex);
-	if (this->buffer_content_length <= 0) {
+	if (this->readBuffer.getLength() < MSG_HEADER_SIZE + MSG_PREABMLE_BYTE) {
 		return nullptr;
 	}
 
 	// search preamble
 	uint32_t preamble_count = 0;
-	while ((preamble_count != GripperSocket::MSG_PREAMBLE_SIZE) && (this->buffer_content_length > 0)) {
+	while ((preamble_count != GripperSocket::MSG_PREAMBLE_SIZE) && (this->readBuffer.getLength() > 0)) {
 		unsigned char b;
-		this->readFromBuffer(1, &b);
+		this->readBuffer.read(1, &b);
 
 		if (b == GripperSocket::MSG_PREABMLE_BYTE) {
 			preamble_count += 1;
@@ -102,17 +100,17 @@ std::shared_ptr<Message> GripperSocket::getMessage() {
 	}
 
 	// read header
-	if (this->buffer_content_length < GripperSocket::MSG_HEADER_SIZE) {
-		throw NotEnoughDataInBuffer("Could not read message header");
+	if (this->readBuffer.getLength() < GripperSocket::MSG_HEADER_SIZE) {
+		throw NotEnoughDataInBuffer("Could not read Header");
 	}
 	unsigned char header[GripperSocket::MSG_HEADER_SIZE];
-	this->readFromBuffer(GripperSocket::MSG_HEADER_SIZE, header);
+	this->readBuffer.read(GripperSocket::MSG_HEADER_SIZE, header);
 	unsigned char messageId = header[0];
 	unsigned int messageLength = (unsigned short)header[1] | ((unsigned short)header[2] << 8);
 
 	// read payload and checksum
 	unsigned char messageData[messageLength + GripperSocket::MSG_CHECKSUM_SIZE];
-	this->readFromBuffer(messageLength + GripperSocket::MSG_CHECKSUM_SIZE, messageData);
+	this->readBuffer.read(messageLength + GripperSocket::MSG_CHECKSUM_SIZE, messageData);
 
 	unsigned short checksum = 0x50f5;	// Checksum over preamble (0xaa 0xaa 0xaa)
 	checksum = checksum_update_crc16(header, GripperSocket::MSG_HEADER_SIZE, checksum);
@@ -123,20 +121,6 @@ std::shared_ptr<Message> GripperSocket::getMessage() {
 	}
 
 	return std::make_shared<Message>(new Message(messageId, messageLength, messageData));
-}
-
-void GripperSocket::readFromBuffer(int length, unsigned char* target) {
-	std::lock_guard<std::recursive_mutex> guard(this->buffer_mutex);
-	if (this->buffer_content_length < length) {
-		throw NotEnoughDataInBuffer("");
-	}
-
-	for (int i = 0; i < length; i++) {
-		unsigned char b = this->buffer[this->buffer_pointer];
-		this->buffer_pointer = (this->buffer_pointer + 1) % GripperSocket::BUFFER_SIZE;
-		this->buffer_content_length -= 1;
-		target[i] = b;
-	}
 }
 
 void GripperSocket::readLoop() {
@@ -161,26 +145,12 @@ void GripperSocket::readLoop() {
 						this->connection_state = ConnectionState::NOT_CONNECTED;
 					}
 				} else {
-					if (read_bytes > GripperSocket::BUFFER_SIZE - this->buffer_content_length)
-					{
+					try {
+						this->readBuffer.write(read_bytes, this->receive_buffer);
+					} catch (NotEnoughSpaceInBuffer& ex) {
 						ROS_ERROR("Discarding data from gripper, because the read buffer is full.");
-					}
-					else
-					{
-						printf("- start buf\n");
-						int first_free = (this->buffer_pointer + this->buffer_content_length) % GripperSocket::BUFFER_SIZE;
-
-						int first = std::min((int)GripperSocket::BUFFER_SIZE - first_free, read_bytes);
-						if (first > 0) {
-							memcpy(this->buffer + first_free, this->receive_buffer, first);
-							this->buffer_content_length += first;
-						}
-
-						int second = read_bytes - first;
-						if (second > 0) {
-							memcpy(this->buffer, this->receive_buffer + first, second);
-							this->buffer_content_length += second;
-						}
+					} catch (...) {
+						ROS_ERROR("Unkown error while writing into read buffer");
 					}
 				}
 			}
