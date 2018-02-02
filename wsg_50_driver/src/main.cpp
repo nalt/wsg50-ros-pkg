@@ -660,8 +660,7 @@ void loop_cb(const ros::TimerEvent& ev) {
 
 	switch (node_state.get()) {
 	case (NodeStateType::NOMINAL): {
-		if ((gripperState.connection_state == ConnectionState::NOT_CONNECTED)
-				|| (gripperState.connection_state == ConnectionState::DROPPED)) {
+		if ((gripperState.connection_state == ConnectionState::NOT_CONNECTED)) {
 			if (ros::Time::now().toSec() - last_connection_try.toSec() > 0.1) {
 				last_connection_try = ros::Time::now();
 				try {
@@ -731,7 +730,61 @@ void loop_cb(const ros::TimerEvent& ev) {
  * The main function
  */
 
+void testGripperSocket() {
+	GripperSocket gs("192.168.50.33", 1000);
+	gs.startReadLoop();
+
+	unsigned short send_counter = 0;
+	unsigned short recv_counter = 0;
+	unsigned int correct_count0r = 0;
+	int n = 1000;
+
+	unsigned char payload[2];
+	std::queue<unsigned short> q;
+	while (correct_count0r < n) {
+		if (gs.getConnectionState() == ConnectionState::CONNECTED) {
+			payload[0] = send_counter & 0xff;
+			payload[1] = (send_counter & 0xff00) >> 8;
+
+			auto msg = Message((unsigned char)WellKnownMessageId::LOOP_BACK, 2, payload);
+			if (send_counter < n) {
+				try {
+					gs.sendMessage(msg);
+					q.push(send_counter);
+					send_counter++;
+				} catch (...) {
+
+				}
+			}
+
+			std::chrono::milliseconds timespan(10);
+			std::this_thread::sleep_for(timespan);
+
+			try {
+				auto m = gs.getMessage();
+				if (m != nullptr) {
+					recv_counter++;
+					unsigned short r = ( (unsigned short)m.get()->data[2] | ( (unsigned short)m.get()->data[3]  << 8 ) );
+					unsigned short v = q.front();
+					q.pop();
+					if (r == v) {
+						correct_count0r++;
+					}
+				}
+			} catch (...) {
+			}
+
+			printf("Send %d, received: %d, correct: %d\n", send_counter, recv_counter, correct_count0r);
+		}
+	}
+
+	gs.disconnect();
+}
+
 int main(int argc, char **argv) {
+	//testGripperSocket();
+	//return 0;
+
 	auto& gripperCom = GripperCommunication::Instance();
 
 	ros::init(argc, argv, "wsg_50");

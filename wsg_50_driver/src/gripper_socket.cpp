@@ -81,8 +81,7 @@ ConnectionState GripperSocket::getConnectionState() {
 }
 
 std::shared_ptr<Message> GripperSocket::getMessage() {
-	std::lock_guard<std::recursive_mutex> guard(this->buffer_mutex);
-	if (this->readBuffer.getLength() < MSG_HEADER_SIZE + MSG_PREABMLE_BYTE) {
+	if (this->readBuffer.getLength() < MSG_HEADER_SIZE + MSG_PREAMBLE_SIZE) {
 		return nullptr;
 	}
 
@@ -136,8 +135,7 @@ void GripperSocket::readLoop() {
 
 			if (this->socket_fd > 0)
 			{
-				std::lock_guard<std::recursive_mutex> guard(this->buffer_mutex);
-				int read_bytes = recv(this->socket_fd, this->receive_buffer, GripperSocket::RECEIVE_BUFFER_SIZE, 0);
+				int read_bytes = recv(this->socket_fd, this->receive_buffer, GripperSocket::BUFFER_SIZE, 0);
 				if (read_bytes <= 0) {
 					if ((read_bytes == 0) || ((errno != EWOULDBLOCK) && (errno != EAGAIN)))
 					{
@@ -151,6 +149,21 @@ void GripperSocket::readLoop() {
 						ROS_ERROR("Discarding data from gripper, because the read buffer is full.");
 					} catch (...) {
 						ROS_ERROR("Unkown error while writing into read buffer");
+					}
+				}
+			}
+
+			if (this->socket_fd > 0)
+			{
+				if (this->writeBuffer.getLength() > 0)
+				{
+					unsigned int a = GripperSocket::BUFFER_SIZE;
+					int length = std::min(a, this->writeBuffer.getLength());
+					this->writeBuffer.read(length, this->send_buffer);
+					int result = send(this->socket_fd, this->send_buffer, length, 0);
+					if (result < length) {
+						this->disconnectSocket();
+						this->connection_state = ConnectionState::NOT_CONNECTED;
 					}
 				}
 			}
@@ -196,16 +209,13 @@ void GripperSocket::sendMessage(Message& message) {
 	crc = checksum_crc16(raw_message, 6);
 	crc = checksum_update_crc16( message.data, message.length, crc);
 
-	int raw_message_size = 6 + message.length + 2;
+	unsigned int raw_message_size = 6 + message.length + 2;
 	unsigned char buf[raw_message_size];
 	memcpy(buf, raw_message, 6);
 	memcpy(buf + 6, message.data, message.length);
 	memcpy(buf + 6 + message.length, (unsigned char*) &crc, 2);
 
-	int result = send(this->socket_fd, buf, raw_message_size, 0);
-	if (result < raw_message_size) {
-		throw SendError("");
-	}
+	this->writeBuffer.write(raw_message_size, buf);
 }
 
 void GripperSocket::startReadLoop() {
@@ -216,6 +226,6 @@ void GripperSocket::startReadLoop() {
 void GripperSocket::disconnectSocket() {
 	if (this->socket_fd > 0) {
 		close(this->socket_fd);
-		this->socket_fd = 0;
+		this->socket_fd = -1;
 	}
 }

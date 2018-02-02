@@ -47,6 +47,7 @@ public:
 
 enum class WellKnownMessageId
 	: unsigned char {
+	LOOP_BACK = 0x06,
 	ANNOUNCE_DISCONNECT = 0x07,
 	HOMING = 0x20,
 	MOVE = 0x21,

@@ -72,6 +72,7 @@ class GripperSocket {
 		static const uint32_t MSG_PREAMBLE_SIZE = 3;
 		static const uint32_t MSG_CHECKSUM_SIZE = 2;
 		static const unsigned char MSG_PREABMLE_BYTE = 0xaa;
+
 		GripperSocket(std::string host, int port);
 		void startReadLoop();
 		void disconnect();
@@ -88,13 +89,13 @@ class GripperSocket {
 
 		RingBuffer readBuffer;
 		RingBuffer writeBuffer;
-		static const uint32_t RECEIVE_BUFFER_SIZE = 1024;
-		unsigned char receive_buffer[RECEIVE_BUFFER_SIZE];
+		static const unsigned int BUFFER_SIZE = 1024;
+		unsigned char receive_buffer[GripperSocket::BUFFER_SIZE];
+		unsigned char send_buffer[GripperSocket::BUFFER_SIZE];
 		std::string host;
 		int port;
 		ConnectionState connection_state;
 		ConnectionState previous_connection_state;
-		std::recursive_mutex buffer_mutex;
 		bool running;
 		std::thread read_loop;
 		int socket_fd;

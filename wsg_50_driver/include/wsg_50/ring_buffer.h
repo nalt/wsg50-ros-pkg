@@ -10,6 +10,7 @@
 
 #include <cstring>
 #include <algorithm>
+#include <memory>
 
 class NotEnoughDataInBuffer: public std::runtime_error {
 	public:
@@ -33,6 +34,7 @@ class RingBuffer{
 		}
 
 		void read(unsigned int length, unsigned char* target) {
+			std::lock_guard<std::mutex> guard(lock);
 			if (this->buffer_content_length < length) {
 				throw NotEnoughDataInBuffer();
 			}
@@ -53,6 +55,7 @@ class RingBuffer{
 		}
 
 		void peek(unsigned int length, unsigned char* target) {
+			std::lock_guard<std::mutex> guard(lock);
 			if (this->buffer_content_length < length) {
 				throw NotEnoughDataInBuffer("Error while peeking");
 			}
@@ -71,11 +74,13 @@ class RingBuffer{
 		}
 
 		void remove(unsigned int length) {
+			std::lock_guard<std::mutex> guard(lock);
 			this->buffer_content_length -= length;
 			this->buffer_pointer = (this->buffer_pointer + length) % RingBuffer::BUFFER_SIZE;
 		}
 
 		void write(unsigned int length, unsigned char* source) {
+			std::lock_guard<std::mutex> guard(lock);
 			if (length > RingBuffer::BUFFER_SIZE - this->buffer_content_length) {
 				throw NotEnoughSpaceInBuffer();
 			}
@@ -95,7 +100,7 @@ class RingBuffer{
 			}
 		}
 
-		int getLength() {
+		unsigned int getLength() {
 			return this->buffer_content_length;
 		}
 
@@ -104,6 +109,7 @@ class RingBuffer{
 		unsigned char buffer[RingBuffer::BUFFER_SIZE];
 		uint32_t buffer_pointer;
 		uint32_t buffer_content_length;
+		std::mutex lock;
 };
 
 #endif /* RING_BUFFER_H_ */
