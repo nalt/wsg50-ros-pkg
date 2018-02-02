@@ -83,8 +83,6 @@ bool objectGraspped;
 
 int g_timer_cnt = 0;
 ros::Publisher g_pub_state, g_pub_joint, g_pub_moving, g_pub_heartbeat;
-bool g_ismoving = false, g_mode_script = false, g_mode_periodic = false,
-		g_mode_polling = false;
 float g_goal_position = NAN, g_goal_speed = NAN, g_speed = 10.0;
 wsg_50_common::Status status_message;
 NodeState node_state;
@@ -95,6 +93,7 @@ sensor_msgs::JointState joint_states;
 std::string ip, protocol;
 int port;
 ros::Time last_connection_try;
+GripperCommunication* gripperCom;
 
 //------------------------------------------------------------------------
 // Unit testing
@@ -263,9 +262,8 @@ bool homingSrv(std_srvs::Empty::Request &req, std_srvs::Empty::Request &res) {
 
 bool stopSrv(std_srvs::Empty::Request &req, std_srvs::Empty::Request &res) {
 	ROS_WARN("Stop!");
-	auto& gripperCom = GripperCommunication::Instance();
 	try {
-		gripperCom.soft_stop();
+		gripperCom->soft_stop();
 	} catch (std::runtime_error& ex) {
 		ROS_FATAL("Could not send stop command");
 		return false;
@@ -276,9 +274,8 @@ bool stopSrv(std_srvs::Empty::Request &req, std_srvs::Empty::Request &res) {
 
 bool fastStopSrv(std_srvs::Empty::Request &req, std_srvs::Empty::Request &res) {
 	ROS_WARN("Stop!");
-	auto& gripperCom = GripperCommunication::Instance();
 	try {
-		gripperCom.fast_stop();
+		gripperCom->fast_stop();
 	} catch (std::runtime_error& ex) {
 		ROS_FATAL("Could not send stop command");
 		return false;
@@ -289,9 +286,8 @@ bool fastStopSrv(std_srvs::Empty::Request &req, std_srvs::Empty::Request &res) {
 
 bool setAccSrv(wsg_50_common::Conf::Request &req,
 		wsg_50_common::Conf::Response &res) {
-	auto& gripperCom = GripperCommunication::Instance();
 	try {
-		gripperCom.set_acceleration(req.val);
+		gripperCom->set_acceleration(req.val);
 		res.error = 0;
 	} catch (std::runtime_error& ex) {
 		ROS_ERROR("Could not send acceleration: %s\n", ex.what());
@@ -303,9 +299,8 @@ bool setAccSrv(wsg_50_common::Conf::Request &req,
 
 bool setForceSrv(wsg_50_common::Conf::Request &req,
 		wsg_50_common::Conf::Response &res) {
-	auto& gripperCom = GripperCommunication::Instance();
 	try {
-		gripperCom.set_force(req.val);
+		gripperCom->set_force(req.val);
 		res.error = 0;
 	} catch (std::runtime_error& ex) {
 		ROS_FATAL("Could not send grasping force command: %s\n", ex.what());
@@ -317,9 +312,8 @@ bool setForceSrv(wsg_50_common::Conf::Request &req,
 
 bool getGripperStatusService(wsg_50_common::GetGripperStatus::Request &req,
 		wsg_50_common::GetGripperStatus::Response &res) {
-	auto& gripperCom = GripperCommunication::Instance();
 	wsg_50_common::Status status;
-	auto gripperState = gripperCom.getState();
+	auto gripperState = gripperCom->getState();
 	status.grasping_state_id = gripperState.grasping_state;
 	status.width = gripperState.width;
 	status.current_force = gripperState.force;
@@ -329,30 +323,13 @@ bool getGripperStatusService(wsg_50_common::GetGripperStatus::Request &req,
 }
 
 bool ackSrv(std_srvs::Empty::Request &req, std_srvs::Empty::Request &res) {
-	auto& gripperCom = GripperCommunication::Instance();
 	try {
-		gripperCom.acknowledge_error();
+		gripperCom->acknowledge_error();
 	} catch (std::runtime_error& ex) {
 		ROS_FATAL("Could not send ack command: %s\n", ex.what());
 		return false;
 	}
 	return true;
-}
-
-/** \brief Callback for goal_position topic (in appropriate modes) */
-void position_cb(const wsg_50_common::Cmd::ConstPtr& msg) {
-	g_speed = msg->speed;
-	g_goal_position = msg->pos;
-	// timer_cb() will send command to gripper
-
-	if (g_mode_periodic) {
-		// Send command to gripper without waiting for a response
-		// read_thread() handles responses
-		// read/write may be simultaneous, therefore no mutex
-		stop(true);
-		if (move(g_goal_position, g_speed, false, true) != 0)
-			ROS_ERROR("Failed to send MOVE command");
-	}
 }
 
 /** \brief Callback for goal_speed topic (in appropriate modes) */
@@ -619,9 +596,7 @@ void read_thread(int interval_ms) {
 
 void sigint_handler(int sig) {
 	ROS_INFO("Exiting...");
-	g_mode_periodic = false;
-	g_mode_script = false;
-	g_mode_polling = false;
+
 	ros::shutdown();
 }
 
@@ -646,9 +621,8 @@ void status_cb(msg_t& message) {
 }
 
 void loop_cb(const ros::TimerEvent& ev) {
-	auto& gripperCom = GripperCommunication::Instance();
 	try {
-		gripperCom.processMessages();
+		gripperCom->processMessages();
 	} catch (std::runtime_error& ex) {
 		ROS_ERROR("An error occured while trying to receive messages: %s",
 				ex.what());
@@ -656,7 +630,7 @@ void loop_cb(const ros::TimerEvent& ev) {
 
 	xamla_sysmon_msgs::HeartBeat heartbeat_msg;
 
-	auto gripperState = gripperCom.getState();
+	auto gripperState = gripperCom->getState();
 
 	switch (node_state.get()) {
 	case (NodeStateType::NOMINAL): {
@@ -665,7 +639,6 @@ void loop_cb(const ros::TimerEvent& ev) {
 				last_connection_try = ros::Time::now();
 				try {
 					ROS_INFO("Try to connect to %s:%d using %s", ip, port, protocol);
-					gripperCom.connectToGripper(protocol, ip, port);
 					ROS_INFO("Connected");
 				} catch (std::runtime_error& ex) {
 					ROS_WARN("Connection failed: %s", ex.what());
@@ -732,7 +705,6 @@ void loop_cb(const ros::TimerEvent& ev) {
 
 void testGripperSocket() {
 	GripperSocket gs("192.168.50.33", 1000);
-	gs.startReadLoop();
 
 	unsigned short send_counter = 0;
 	unsigned short recv_counter = 0;
@@ -785,8 +757,6 @@ int main(int argc, char **argv) {
 	//testGripperSocket();
 	//return 0;
 
-	auto& gripperCom = GripperCommunication::Instance();
-
 	ros::init(argc, argv, "wsg_50");
 	ros::NodeHandle nh("~");
 	signal(SIGINT, sigint_handler);
@@ -797,135 +767,102 @@ int main(int argc, char **argv) {
 
 	nh.param("ip", ip, std::string("192.168.1.20"));
 	nh.param("port", port, 1000);
-	nh.param("local_port", local_port, 1501);
-	nh.param("protocol", protocol, std::string("tcp"));
 	nh.param("com_mode", com_mode, std::string(""));
 	nh.param("rate", rate, 1.0); // With custom script, up to 30Hz are possible
 	nh.param("grasping_force", grasping_force, 0.0);
 	nh.param("prefix", prefix, std::string(""));
 
-	if (protocol == "tcp")
-		protocol = "tcp";
-
-	if (com_mode == "script")
-		g_mode_script = true;
-	else if (com_mode == "auto_update")
-		g_mode_periodic = true;
-	else {
-		com_mode = "polling";
-		g_mode_polling = true;
-	}
+	gripperCom = new GripperCommunication(ip, port);
 
 	ROS_INFO("Connecting to %s:%d (%s); communication mode: %s ...", ip.c_str(),
 			port, protocol.c_str(), com_mode.c_str());
 
-	bool proceed_with_startup = true;
-	try {
-		last_connection_try = ros::Time::now();
-		gripperCom.connectToGripper(protocol, ip, port);
-	} catch (ProtocolNotSupported& ex) {
-		proceed_with_startup = false;
-	} catch (...) {
 
-	}
+	printf("Create message processing timer\n");
+	auto tmr = nh.createTimer(ros::Duration(0.001), loop_cb);
 
-	if (proceed_with_startup == true) {
-		ros::Duration(1).sleep();
-		printf("Register callback\n");
-
-		printf("Create message processing timer\n");
-		auto tmr = nh.createTimer(ros::Duration(0.001), loop_cb);
-
-		XmlRpc::XmlRpcValue tmp_list;
-		nh.getParam("controller_list", tmp_list);
-		std::vector<std::string> result = get_name(tmp_list);
-		if (result.empty()) {
-			ROS_ERROR(
-					"Could not find controller_list. This error is not recoverable.");
-		} else {
-			std::string controller_name = result[0];
-			std::string action_ns = result[1];
-			joint_states.header.frame_id = prefix + "_base_link";
-			joint_states.name.push_back(result[3]);
-			joint_states.name.push_back(result[4]);
-			joint_states.position.resize(2);
-			joint_states.velocity.resize(2);
-			joint_states.effort.resize(2);
-
-			// Open publishers
-			g_pub_state = nh.advertise<wsg_50_common::Status>(
-					controller_name + "/status", 1000);
-			g_pub_joint = nh.advertise<sensor_msgs::JointState>("/joint_states",
-					10);
-			g_pub_heartbeat = nh.advertise<xamla_sysmon_msgs::HeartBeat>(
-					controller_name + "/heartbeat", 1);
-
-			xamla_sysmon_msgs::HeartBeat msg;
-			msg.header.stamp = ros::Time::now();
-
-			msg.status =
-					static_cast<int>(TopicHeartbeatStatus::TopicCode::STARTING);
-			msg.details = TopicHeartbeatStatus::generateMessageText(
-					TopicHeartbeatStatus::intToStatusCode(msg.status));
-			g_pub_heartbeat.publish(msg);
-
-			// Services
-			ros::ServiceServer setAccSS, setForceSS, stopSS, ackSS, getStatusSS, fastStopSS;
-			setAccSS = nh.advertiseService(controller_name + "/set_acceleration", setAccSrv);
-			setForceSS = nh.advertiseService(controller_name + "/set_force", setForceSrv);
-			stopSS = nh.advertiseService(controller_name + "/soft_stop", stopSrv);
-			ackSS = nh.advertiseService(controller_name + "/acknowledge_error", ackSrv);
-			getStatusSS = nh.advertiseService(controller_name + "/get_gripper_status", getGripperStatusService);
-			fastStopSS = nh.advertiseService(controller_name + "/fast_stop", fastStopSrv);
-
-			// Open action server
-			action_server = new GripperActionServer(nh,
-					controller_name + "/" + action_ns, gripperCom, node_state);
-			action_server->start();
-
-			try {
-				printf("Spinning\n");
-				node_state.set(NodeStateType::NOMINAL);
-
-				// Start ROS loop
-				ros::spin();
-			} catch (const MessageQueueFull& e) {
-				printf("queue full\n");
-			} catch (const MessageSendFailed& e) {
-				printf("send failed\n");
-			} catch (const std::runtime_error& re) {
-				ROS_ERROR(
-						"Could not request grip state updates from gripper. This error is not recoverable.");
-				printf("%s\n", re.what());
-			}
-
-			status_message.grasping_state_id = wsg_50_common::Status::UNKNOWN;
-			g_pub_state.publish(status_message);
-
-			action_server->shutdown();
-			delete action_server;
-			action_server = nullptr;
-			setAccSS.shutdown();
-			setForceSS.shutdown();
-			stopSS.shutdown();
-			ackSS.shutdown();
-			getStatusSS.shutdown();
-			fastStopSS.shutdown();
-			g_pub_state.shutdown();
-			g_pub_joint.shutdown();
-			nh.shutdown();
-			gripperCom.shutdown();
-		}
-	} else {
+	XmlRpc::XmlRpcValue tmp_list;
+	nh.getParam("controller_list", tmp_list);
+	std::vector<std::string> result = get_name(tmp_list);
+	if (result.empty()) {
 		ROS_ERROR(
-				"Could not open connection to gripper. This error is not recoverable.");
+				"Could not find controller_list. This error is not recoverable.");
+	} else {
+		std::string controller_name = result[0];
+		std::string action_ns = result[1];
+		joint_states.header.frame_id = prefix + "_base_link";
+		joint_states.name.push_back(result[3]);
+		joint_states.name.push_back(result[4]);
+		joint_states.position.resize(2);
+		joint_states.velocity.resize(2);
+		joint_states.effort.resize(2);
+
+		// Open publishers
+		g_pub_state = nh.advertise<wsg_50_common::Status>(
+				controller_name + "/status", 1000);
+		g_pub_joint = nh.advertise<sensor_msgs::JointState>("/joint_states",
+				10);
+		g_pub_heartbeat = nh.advertise<xamla_sysmon_msgs::HeartBeat>(
+				controller_name + "/heartbeat", 1);
+
+		xamla_sysmon_msgs::HeartBeat msg;
+		msg.header.stamp = ros::Time::now();
+
+		msg.status =
+				static_cast<int>(TopicHeartbeatStatus::TopicCode::STARTING);
+		msg.details = TopicHeartbeatStatus::generateMessageText(
+				TopicHeartbeatStatus::intToStatusCode(msg.status));
+		g_pub_heartbeat.publish(msg);
+
+		// Services
+		ros::ServiceServer setAccSS, setForceSS, stopSS, ackSS, getStatusSS, fastStopSS;
+		setAccSS = nh.advertiseService(controller_name + "/set_acceleration", setAccSrv);
+		setForceSS = nh.advertiseService(controller_name + "/set_force", setForceSrv);
+		stopSS = nh.advertiseService(controller_name + "/soft_stop", stopSrv);
+		ackSS = nh.advertiseService(controller_name + "/acknowledge_error", ackSrv);
+		getStatusSS = nh.advertiseService(controller_name + "/get_gripper_status", getGripperStatusService);
+		fastStopSS = nh.advertiseService(controller_name + "/fast_stop", fastStopSrv);
+
+		// Open action server
+		action_server = new GripperActionServer(nh,
+				controller_name + "/" + action_ns, *gripperCom, node_state);
+		action_server->start();
+
+		try {
+			printf("Spinning\n");
+			node_state.set(NodeStateType::NOMINAL);
+
+			// Start ROS loop
+			ros::spin();
+		} catch (const MessageQueueFull& e) {
+			printf("queue full\n");
+		} catch (const MessageSendFailed& e) {
+			printf("send failed\n");
+		} catch (const std::runtime_error& re) {
+			ROS_ERROR(
+					"Could not request grip state updates from gripper. This error is not recoverable.");
+			printf("%s\n", re.what());
+		}
+
+		status_message.grasping_state_id = wsg_50_common::Status::UNKNOWN;
+		g_pub_state.publish(status_message);
+
+		action_server->shutdown();
+		delete action_server;
+		action_server = nullptr;
+		setAccSS.shutdown();
+		setForceSS.shutdown();
+		stopSS.shutdown();
+		ackSS.shutdown();
+		getStatusSS.shutdown();
+		fastStopSS.shutdown();
+		g_pub_state.shutdown();
+		g_pub_joint.shutdown();
+		nh.shutdown();
+		gripperCom->shutdown();
 	}
 
 	ROS_INFO("Exiting...");
-
-	g_mode_periodic = false;
-	g_mode_script = false;
-	g_mode_polling = false;
 	sleep(1);
 
 	return 0;

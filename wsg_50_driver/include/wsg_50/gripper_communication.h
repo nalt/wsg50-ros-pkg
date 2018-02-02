@@ -13,7 +13,7 @@
 #include <chrono>
 #include <thread>
 
-typedef std::function<void(msg_t& response)> GripperCallback;
+typedef std::function<void(Message& response)> GripperCallback;
 
 class CommandSubscription {
 public:
@@ -34,12 +34,12 @@ public:
 class CommandState {
 public:
 	CommandState();
-	CommandState(msg_t message, GripperCallback callback = nullptr) {
+	CommandState(Message& message, GripperCallback callback = nullptr) {
 		this->message = message;
 		this->callback = callback;
 	}
 
-	msg_t message;
+	Message message;
 	GripperCallback callback;
 };
 
@@ -71,24 +71,14 @@ enum class CommandStateCode
 		UNKNOWN = 0, PENDING = 1, SUCCESS = 2, ERROR = 3
 };
 
-// thanks https://stackoverflow.com/a/34653512
 class GripperCommunication
 final {
 	public:
-		static GripperCommunication& Instance() {
-			// Since it's a static variable, if the class has already been created,
-			// it won't be created again.
-			// And it **is** thread-safe in C++11.
-			static GripperCommunication myInstance;
+		GripperCommunication(std::string host, int port);
+		~GripperCommunication() {}
 
-			// Return a reference to our instance.
-			return myInstance;
-		}
-		~GripperCommunication() {
-		}
-
-		void sendCommand(msg_t& message, GripperCallback callback = nullptr);
-		void sendCommandSynchronous(msg_t& message, int timeout_in_ms = 1000);
+		void sendCommand(Message& message, GripperCallback callback = nullptr);
+		void sendCommandSynchronous(Message& message, int timeout_in_ms = 1000);
 		CommandSubscription subscribe(unsigned char messageId,
 				GripperCallback callback);
 		void unregisterListener(unsigned char messageId, int listenerId);
@@ -121,7 +111,7 @@ final {
 		void requestValueUpdate(unsigned char messageId);
 
 		bool lastCommandReturnedSuccess(const unsigned char messageId);
-		int decodeStatus(msg_t& message);
+		int decodeStatus(Message& message);
 
 		// delete copy and move constructors and assign operators
 		GripperCommunication(const GripperCommunication&) = delete; // Copy construct
@@ -129,30 +119,19 @@ final {
 		GripperCommunication& operator=(const GripperCommunication&) = delete; // Copy assign
 		GripperCommunication& operator=(GripperCommunication&&) = delete; // Move assign
 
-		void forceCallback(msg_t& message);
-		void speedCallback(msg_t& message);
+		void forceCallback(Message& message);
+		void speedCallback(Message& message);
 	private:
-		GripperCommunication() {
-			this->currentCommand = nullptr;
-			gripper_state.force = -1;
-			gripper_state.speed = -1;
-			gripper_state.width = -1;
-			gripper_state.grasping_state = -1;
-			gripper_state.system_state = -1;
-			gripper_state.connection_state = ConnectionState::NOT_CONNECTED;
-			running = true;
-		}
-
 		void activateAutoUpdates(const unsigned char messageId,
 				const int interval_ms);
-		void callbackListeners(const unsigned char messageId, msg_t& message);
+		void callbackListeners(const unsigned char messageId, Message& message);
 		void updateCommandState(const unsigned char messageId,
 				const CommandStateCode state);
 
-		void graspingStateCallback(msg_t& message);
-		void widthCallback(msg_t& message);
+		void graspingStateCallback(Message& message);
+		void widthCallback(Message& message);
 
-
+		GripperSocket* gripper_socket;
 		std::map<unsigned char, std::map<int, GripperCallback> > callbacks;
 		std::map<unsigned char, CommandStateCode> commandStates;
 		std::shared_ptr<CommandState> currentCommand;

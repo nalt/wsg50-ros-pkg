@@ -4,6 +4,7 @@
 #include <ros/ros.h>
 #include <actionlib/server/simple_action_server.h>
 #include "wsg_50/gripper_communication.h"
+#include "wsg_50/gripper_socket.h"
 #include "wsg_50/node_state.h"
 #include "wsg_50_common/CommandAction.h"
 #include <queue>
@@ -48,12 +49,12 @@ class GripperActionServer {
 		void handleCommand(wsg_50_common::Command command, GoalHandle& goal_handle);
 
 		void abort();
-		void commandCallback(msg_t& message);
-		void stopCallback(msg_t& message);
+		void commandCallback(Message& message);
+		void stopCallback(Message& message);
 
 		wsg_50_common::Status fillStatus();
 		ActionState action_state;
-		void graspingStateCallback(msg_t& message);
+		void graspingStateCallback(Message& message);
 };
 
 

@@ -15,13 +15,13 @@ GripperActionServer::GripperActionServer(ros::NodeHandle& node_handle,
 
 	grasping_state_subscription = this->gripper_com.subscribe(
 			(unsigned char) WellKnownMessageId::GRIPPING_STATE,
-			[&](msg_t& message) {this->graspingStateCallback(message);});
+			[&](Message& message) {this->graspingStateCallback(message);});
 	soft_stop_subscription = this->gripper_com.subscribe(
 			(unsigned char) WellKnownMessageId::SOFT_STOP,
-			[&](msg_t& message) {this->stopCallback(message);});
+			[&](Message& message) {this->stopCallback(message);});
 	emergency_stop_subscription = this->gripper_com.subscribe(
 			(unsigned char) WellKnownMessageId::EMERGENCY_STOP,
-			[&](msg_t& message) {this->stopCallback(message);});
+			[&](Message& message) {this->stopCallback(message);});
 }
 
 void GripperActionServer::doWork() {
@@ -105,7 +105,7 @@ void GripperActionServer::handleCommand(wsg_50_common::Command command,
 			this->executeNextCommand();*/
 			this->action_state.expected_grasping_state = wsg_50_common::Status::IDLE;
 			this->gripper_com.move(command.width, command.speed, command.stop_on_block,
-								[&](msg_t& message) {
+								[&](Message& message) {
 									this->commandCallback(message);
 								});
 		} catch (std::runtime_error& ex) {
@@ -121,7 +121,7 @@ void GripperActionServer::handleCommand(wsg_50_common::Command command,
 		try {
 			this->action_state.expected_grasping_state = wsg_50_common::Status::HOLDING;
 			this->gripper_com.grasp(command.width, command.speed,
-					[&](msg_t& message) {
+					[&](Message& message) {
 						this->commandCallback(message);
 					});
 		} catch (...) {
@@ -136,7 +136,7 @@ void GripperActionServer::handleCommand(wsg_50_common::Command command,
 		try {
 			this->action_state.expected_grasping_state = wsg_50_common::Status::IDLE;
 			this->gripper_com.release(command.width, command.speed,
-					[&](msg_t& message) {
+					[&](Message& message) {
 						this->commandCallback(message);
 					});
 		} catch (...) {
@@ -150,7 +150,7 @@ void GripperActionServer::handleCommand(wsg_50_common::Command command,
 	case (wsg_50_common::Command::HOMING): {
 		try {
 			this->gripper_com.homing(
-					[&](msg_t& message) {
+					[&](Message& message) {
 						this->commandCallback(message);
 					});
 		} catch (...) {
@@ -164,7 +164,7 @@ void GripperActionServer::handleCommand(wsg_50_common::Command command,
 	}
 }
 
-void GripperActionServer::commandCallback(msg_t& message) {
+void GripperActionServer::commandCallback(Message& message) {
 	if (this->action_state.state == ActionStateCode::AWAIT_COMMAND) {
 		this->action_state.return_code = this->gripper_com.decodeStatus(
 				message);
@@ -172,7 +172,7 @@ void GripperActionServer::commandCallback(msg_t& message) {
 	}
 }
 
-void GripperActionServer::stopCallback(msg_t& message) {
+void GripperActionServer::stopCallback(Message& message) {
 	if (this->action_state.state != ActionStateCode::NO_GOAL) {
 		ROS_WARN("Stop received. Aborting goal");
 		wsg_50_common::CommandResult result;
@@ -204,7 +204,7 @@ wsg_50_common::Status GripperActionServer::fillStatus() {
 	return status;
 }
 
-void GripperActionServer::graspingStateCallback(msg_t& message) {
+void GripperActionServer::graspingStateCallback(Message& message) {
 	if (this->action_state.state == ActionStateCode::AWAIT_STATUS_UPDATE) {
 		this->action_state.state = ActionStateCode::DONE;
 	}

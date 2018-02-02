@@ -20,6 +20,9 @@ GripperSocket::GripperSocket(std::string host, int port){
 	this->connection_state = ConnectionState::NOT_CONNECTED;
 	this->previous_connection_state = this->connection_state;
 	this->socket_fd = -1;
+	this->connection_state_change_callback = nullptr;
+
+	this->startReadLoop();
 }
 
 void GripperSocket::connectSocket() {
@@ -130,6 +133,9 @@ void GripperSocket::readLoop() {
 			if (this->previous_connection_state != this->connection_state)
 			{
 				ROS_INFO("Changed connection state from NOT_CONNECTED to CONNECTED");
+				if (this->connection_state_change_callback != nullptr) {
+					this->connection_state_change_callback(this->connection_state);
+				}
 			}
 			this->previous_connection_state = this->connection_state;
 
@@ -173,6 +179,9 @@ void GripperSocket::readLoop() {
 			if (this->previous_connection_state != this->connection_state)
 			{
 				ROS_INFO("Changed connection state from CONNECTED to NOT_CONNECTED");
+				if (this->connection_state_change_callback != nullptr) {
+					this->connection_state_change_callback(this->connection_state);
+				}
 			}
 			this->previous_connection_state = this->connection_state;
 
@@ -189,6 +198,14 @@ void GripperSocket::readLoop() {
 		std::chrono::milliseconds timespan(1);
 		std::this_thread::sleep_for(timespan);
 	}
+}
+
+void GripperSocket::setConnectionStateChangedCallback(ConnectionStateCallback callback) {
+	this->connection_state_change_callback = callback;
+}
+
+void GripperSocket::reconnect() {
+	this->disconnectSocket();
 }
 
 void GripperSocket::sendMessage(Message& message) {

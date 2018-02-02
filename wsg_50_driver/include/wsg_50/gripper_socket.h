@@ -27,6 +27,8 @@ enum class ConnectionState: unsigned char {
 	CONNECTED = 1,
 };
 
+typedef std::function<void(ConnectionState& new_connection_state)> ConnectionStateCallback;
+
 class Message {
 	public:
 		Message() {
@@ -55,9 +57,11 @@ class Message {
 
 		~Message() {
 			if (this->length > 0) {
-				delete this->data;
-				this->data = nullptr;
+				if (this->data != nullptr) {
+					delete this->data;
+				}
 			}
+			this->data = nullptr;
 		}
 
 		unsigned char id;
@@ -74,11 +78,12 @@ class GripperSocket {
 		static const unsigned char MSG_PREABMLE_BYTE = 0xaa;
 
 		GripperSocket(std::string host, int port);
-		void startReadLoop();
 		void disconnect();
 		ConnectionState getConnectionState();
 		std::shared_ptr<Message> getMessage();
 		void sendMessage(Message& message);
+		void setConnectionStateChangedCallback(ConnectionStateCallback callback);
+		void reconnect();
 
 	private:
 		void connectSocket();
@@ -86,6 +91,7 @@ class GripperSocket {
 		void readLoop();
 		bool tryParseMessage(std::shared_ptr<Message>& message);
 		void readFromBuffer(int length, unsigned char* target);
+		void startReadLoop();
 
 		RingBuffer readBuffer;
 		RingBuffer writeBuffer;
@@ -99,6 +105,7 @@ class GripperSocket {
 		bool running;
 		std::thread read_loop;
 		int socket_fd;
+		ConnectionStateCallback connection_state_change_callback;
 };
 
 class SocketCreationError: public std::runtime_error {
