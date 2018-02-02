@@ -34,39 +34,28 @@ class Message {
 		Message() {
 			this->id = 0;
 			this->length = 0;
-			this->data = nullptr;
 		}
 
 		Message(unsigned char id, unsigned int length, unsigned char* data) {
 			this->id = id;
 			this->length = length;
-			this->data = new unsigned char[length];
-			std::memcpy(this->data, data, sizeof(unsigned char) * length);
+			for (int i = 0; i < length; i++) {
+				this->data.push_back(data[i]);
+			}
 		}
 
 		Message(Message* m) {
 			this->id = m->id;
 			this->length = m->length;
-			if (m->length > 0) {
-				this->data = new unsigned char[m->length];
-				std::memcpy(this->data, m->data, sizeof(unsigned char) * m->length);
-			} else {
-				this->data = nullptr;
-			}
+			this->data = m->data;
 		}
 
 		~Message() {
-			if (this->length > 0) {
-				if (this->data != nullptr) {
-					delete this->data;
-				}
-			}
-			this->data = nullptr;
 		}
 
 		unsigned char id;
 		unsigned int length;
-		unsigned char* data;
+		std::vector<unsigned char> data;
 };
 
 class GripperSocket {

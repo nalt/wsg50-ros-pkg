@@ -223,13 +223,18 @@ void GripperSocket::sendMessage(Message& message) {
 	raw_message[3 + 1] = lo(message.length);
 	raw_message[3 + 2] = hi(message.length);
 
+	unsigned char messageData[message.length];
+	for (int i = 0; i < message.length; i++) {
+		messageData[i] = message.data.at(i);
+	}
 	crc = checksum_crc16(raw_message, 6);
-	crc = checksum_update_crc16( message.data, message.length, crc);
+	crc = checksum_update_crc16(messageData, message.length, crc);
 
 	unsigned int raw_message_size = 6 + message.length + 2;
 	unsigned char buf[raw_message_size];
 	memcpy(buf, raw_message, 6);
-	memcpy(buf + 6, message.data, message.length);
+	memcpy(buf + 6, messageData, message.length);
+
 	memcpy(buf + 6 + message.length, (unsigned char*) &crc, 2);
 
 	this->writeBuffer.write(raw_message_size, buf);
