@@ -27,5 +27,5 @@ int32 E_SUCCESS = 0
  
 # node state
 int32 NOT_CONNECTED = 0
-int32 NOMINAL = 1
-int32 DROPPED = 2
+int32 CONNECTED = 1
+

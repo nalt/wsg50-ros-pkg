@@ -69,6 +69,7 @@ void GripperSocket::connectSocket() {
 		throw SocketConfigrurationError("");
 	}
 
+	this->connection_state = ConnectionState::CONNECTED;
 	this->socket_fd = fd;
 }
 
@@ -188,7 +189,6 @@ void GripperSocket::readLoop() {
 			try
 			{
 				this->connectSocket();
-				this->connection_state = ConnectionState::CONNECTED;
 			} catch (...)
 			{
 				ROS_WARN("Error while connecting to %s:%d using TCP/IP.", this->host.c_str(), this->port);
@@ -205,6 +205,7 @@ void GripperSocket::setConnectionStateChangedCallback(ConnectionStateCallback ca
 }
 
 void GripperSocket::reconnect() {
+	ROS_INFO("Reconnect requested.");
 	this->disconnectSocket();
 }
 
@@ -247,7 +248,9 @@ void GripperSocket::startReadLoop() {
 
 void GripperSocket::disconnectSocket() {
 	if (this->socket_fd > 0) {
+		ROS_INFO("Closing socket.");
 		close(this->socket_fd);
+		this->connection_state = ConnectionState::NOT_CONNECTED;
 		this->socket_fd = -1;
 	}
 }

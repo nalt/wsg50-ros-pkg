@@ -634,18 +634,6 @@ void loop_cb(const ros::TimerEvent& ev) {
 
 	switch (node_state.get()) {
 	case (NodeStateType::NOMINAL): {
-		if ((gripperState.connection_state == ConnectionState::NOT_CONNECTED)) {
-			if (ros::Time::now().toSec() - last_connection_try.toSec() > 0.1) {
-				last_connection_try = ros::Time::now();
-				try {
-					ROS_INFO("Try to connect to %s:%d using %s", ip, port, protocol);
-					ROS_INFO("Connected");
-				} catch (std::runtime_error& ex) {
-					ROS_WARN("Connection failed: %s", ex.what());
-				}
-			}
-		}
-
 		action_server->doWork();
 
 		heartbeat_msg.header.stamp = ros::Time::now();
@@ -682,6 +670,7 @@ void loop_cb(const ros::TimerEvent& ev) {
 		status_message.width = gripperState.width;
 		status_message.current_force = gripperState.force;
 		status_message.current_speed = gripperState.speed;
+		status_message.connection_state = (uint32_t)gripperState.connection_state;
 		g_pub_state.publish(status_message);
 
 		g_pub_heartbeat.publish(heartbeat_msg);

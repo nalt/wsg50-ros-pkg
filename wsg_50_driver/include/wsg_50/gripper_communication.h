@@ -41,6 +41,7 @@ public:
 
 	Message message;
 	GripperCallback callback;
+	ros::Time sent;
 };
 
 
@@ -74,7 +75,8 @@ enum class CommandStateCode
 class GripperCommunication
 final {
 	public:
-		GripperCommunication(std::string host, int port);
+		static constexpr float TIMEOUT_DELAY = 2.5;
+		GripperCommunication(std::string host, int port, int auto_update_frequency = 50);
 		~GripperCommunication() {}
 
 		void sendCommand(Message& message, GripperCallback callback = nullptr);
@@ -108,7 +110,6 @@ final {
 		GripperState getState();
 
 		void activateAutomaticValueUpdates();
-		void requestValueUpdate(unsigned char messageId);
 
 		bool lastCommandReturnedSuccess(const unsigned char messageId);
 		int decodeStatus(Message& message);
@@ -138,6 +139,8 @@ final {
 		std::vector<CommandSubscription> subscriptions;
  		GripperState gripper_state;
  		bool running;
+ 		int auto_update_frequency;
+ 		ros::Time last_received_update;
 	};
 
 	class MessageQueueFull: public std::runtime_error {
