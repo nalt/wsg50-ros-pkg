@@ -6,9 +6,7 @@ float32 width
 float32 current_speed
 float32 current_force
 float32 grasping_force
-float32 speed
-float32 force_finger0
-float32 force_finger1
+float32 acceleration
 
 # grasping state IDs
 int32 IDLE = 0

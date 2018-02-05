@@ -15,13 +15,35 @@ GripperActionServer::GripperActionServer(ros::NodeHandle& node_handle,
 
 	grasping_state_subscription = this->gripper_com.subscribe(
 			(unsigned char) WellKnownMessageId::GRIPPING_STATE,
-			[&](Message& message) {this->graspingStateCallback(message);});
+			[&](std::shared_ptr<CommandError> error, std::shared_ptr<Message> message) {
+			if ((error == nullptr) && (message != nullptr)){
+				this->graspingStateCallback(*message.get());
+			}
+		});
 	soft_stop_subscription = this->gripper_com.subscribe(
 			(unsigned char) WellKnownMessageId::SOFT_STOP,
-			[&](Message& message) {this->stopCallback(message);});
+			[&](std::shared_ptr<CommandError> error, std::shared_ptr<Message> message) {
+		if ((error == nullptr) && (message != nullptr)){
+			this->stopCallback(*message.get());
+		}
+	});
 	emergency_stop_subscription = this->gripper_com.subscribe(
 			(unsigned char) WellKnownMessageId::EMERGENCY_STOP,
-			[&](Message& message) {this->stopCallback(message);});
+			[&](std::shared_ptr<CommandError> error, std::shared_ptr<Message> message) {
+		if ((error == nullptr) && (message != nullptr)){
+			this->stopCallback(*message.get());
+		}
+	});
+}
+
+void GripperActionServer::abort(std::string message_text) {
+	ROS_INFO(message_text.c_str());
+	if (this->action_state.state != ActionStateCode::NO_GOAL) {
+		wsg_50_common::CommandResult result;
+		result.status = this->fillStatus();
+		this->current_goal_handle.setAborted(result, message_text);
+		this->action_state.state = ActionStateCode::NO_GOAL;
+	}
 }
 
 void GripperActionServer::doWork() {
@@ -73,18 +95,18 @@ void GripperActionServer::shutdown() {
 void GripperActionServer::goalCallback(GoalHandle goal_handle) {
 	auto goal = goal_handle.getGoal();
 
-	if (this->gripper_com.acceptsCommands() == false) {
+	std::string reason_for_rejection = "";
+	if (this->gripper_com.acceptsCommands(reason_for_rejection) == false) {
 		wsg_50_common::CommandResult result;
 		result.status = this->fillStatus();
-		goal_handle.setRejected(result,
-				"Gripper is already processing a command");
+		goal_handle.setRejected(result, reason_for_rejection);
 	} else {
 		if (this->action_state.state != ActionStateCode::NO_GOAL) {
 			ROS_WARN("Aborting current goal. This is not supposed to happen.");
-			this->current_goal_handle.setAborted();
+			this->abort("Received new goal and the gripper seems to be idle. Aborting the previous action.");
 		}
 		goal_handle.setAccepted("Accept new gripper command");
-		ROS_INFO("Accepted goal");
+		ROS_INFO("Accepted goal %s", goal_handle.getGoalID().id.c_str());
 
 		this->current_goal_handle = goal_handle;
 		this->action_state.state = ActionStateCode::AWAIT_COMMAND;
@@ -99,14 +121,10 @@ void GripperActionServer::handleCommand(wsg_50_common::Command command,
 	switch (command.command_id) {
 	case (wsg_50_common::Command::MOVE): {
 		try {
-			/*printf("Create command queue\n");
-			auto message = this->gripper_com.createMoveMessage(command.width, command.speed, command.stop_on_block);
-			this->action_state.message_queue.push(message);
-			this->executeNextCommand();*/
 			this->action_state.expected_grasping_state = wsg_50_common::Status::IDLE;
 			this->gripper_com.move(command.width, command.speed, command.stop_on_block,
-								[&](Message& message) {
-									this->commandCallback(message);
+								[&](std::shared_ptr<CommandError> error, std::shared_ptr<Message> message) {
+									this->commandCallback(error, message);
 								});
 		} catch (std::runtime_error& ex) {
 			wsg_50_common::CommandResult result;
@@ -121,8 +139,8 @@ void GripperActionServer::handleCommand(wsg_50_common::Command command,
 		try {
 			this->action_state.expected_grasping_state = wsg_50_common::Status::HOLDING;
 			this->gripper_com.grasp(command.width, command.speed,
-					[&](Message& message) {
-						this->commandCallback(message);
+					[&](std::shared_ptr<CommandError> error, std::shared_ptr<Message> message) {
+						this->commandCallback(error, message);
 					});
 		} catch (...) {
 			wsg_50_common::CommandResult result;
@@ -136,8 +154,8 @@ void GripperActionServer::handleCommand(wsg_50_common::Command command,
 		try {
 			this->action_state.expected_grasping_state = wsg_50_common::Status::IDLE;
 			this->gripper_com.release(command.width, command.speed,
-					[&](Message& message) {
-						this->commandCallback(message);
+					[&](std::shared_ptr<CommandError> error, std::shared_ptr<Message> message) {
+						this->commandCallback(error, message);
 					});
 		} catch (...) {
 			wsg_50_common::CommandResult result;
@@ -150,8 +168,8 @@ void GripperActionServer::handleCommand(wsg_50_common::Command command,
 	case (wsg_50_common::Command::HOMING): {
 		try {
 			this->gripper_com.homing(
-					[&](Message& message) {
-						this->commandCallback(message);
+					[&](std::shared_ptr<CommandError> error, std::shared_ptr<Message> message) {
+						this->commandCallback(error, message);
 					});
 		} catch (...) {
 			wsg_50_common::CommandResult result;
@@ -164,35 +182,30 @@ void GripperActionServer::handleCommand(wsg_50_common::Command command,
 	}
 }
 
-void GripperActionServer::commandCallback(Message& message) {
-	if (this->action_state.state == ActionStateCode::AWAIT_COMMAND) {
-		this->action_state.return_code = this->gripper_com.decodeStatus(
-				message);
-		this->action_state.state = ActionStateCode::AWAIT_STATUS_UPDATE;
+void GripperActionServer::commandCallback(std::shared_ptr<CommandError> error, std::shared_ptr<Message> message) {
+	if ((error == nullptr) && (message != nullptr)) {
+		if (this->action_state.state == ActionStateCode::AWAIT_COMMAND) {
+			this->action_state.return_code = this->gripper_com.decodeStatus(
+					*message.get());
+			this->action_state.state = ActionStateCode::AWAIT_STATUS_UPDATE;
+		}
+	} else {
+		if (this->action_state.state != ActionStateCode::NO_GOAL) {
+			if ((error != nullptr) && (error.get()->id == CommandError::TIMEOUT)) {
+				this->abort("Command has timed out");
+			} else {
+				this->abort("Command has failed with an unkown error");
+			}
+		}
 	}
 }
 
 void GripperActionServer::stopCallback(Message& message) {
-	if (this->action_state.state != ActionStateCode::NO_GOAL) {
-		ROS_WARN("Stop received. Aborting goal");
-		wsg_50_common::CommandResult result;
-		result.status = this->fillStatus();
-		this->current_goal_handle.setAborted(result,
-				"Received stop");
-		this->action_state.state = ActionStateCode::NO_GOAL;
-	}
+	this->abort("Received stop command");
 }
 
 void GripperActionServer::cancelCallback(GoalHandle goal_handle) {
-	printf("CANCEL CALLBACK\n");
-	if (this->action_state.state != ActionStateCode::NO_GOAL) {
-		ROS_WARN("Stop received. Aborting goal");
-		wsg_50_common::CommandResult result;
-		result.status = this->fillStatus();
-		this->current_goal_handle.setAborted(result,
-				"Received cancel request");
-		this->action_state.state = ActionStateCode::NO_GOAL;
-	}
+	this->abort("Received cancel callback");
 }
 
 wsg_50_common::Status GripperActionServer::fillStatus() {

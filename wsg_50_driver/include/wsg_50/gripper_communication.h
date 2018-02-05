@@ -3,6 +3,7 @@
 
 #include <ros/ros.h>
 #include <wsg_50/gripper_socket.h>
+#include "wsg_50_common/Status.h"
 #include "msg.h"
 #include "common.h"
 #include <map>
@@ -13,7 +14,25 @@
 #include <chrono>
 #include <thread>
 
-typedef std::function<void(Message& response)> GripperCallback;
+class CommandError {
+	public:
+		static const int UNKNOWN = 0;
+		static const int TIMEOUT = 1;
+
+		CommandError() {
+			this->id = CommandError::UNKNOWN;
+			this->message = "";
+		}
+
+		CommandError(int id, std::string message) {
+		   this->id = id;
+		   this->message = message;
+		}
+		int id;
+		std::string message;
+};
+
+typedef std::function<void(std::shared_ptr<CommandError> error, std::shared_ptr<Message> response)> GripperCallback;
 
 class CommandSubscription {
 public:
@@ -24,24 +43,54 @@ public:
 class GripperState {
 public:
 	float width;
-	float speed;
-	float force;
+	float current_speed;
+	float current_force;
+	float configured_acceleration;
+	float configured_force;
 	int32_t grasping_state;
 	int32_t system_state;
 	ConnectionState connection_state;
+
+	GripperState() {
+		this->current_force = -1;
+		this->current_speed = -1;
+		this->width = -1;
+		this->configured_force = -1;
+		this->configured_acceleration = -1;
+		this->grasping_state = -1;
+		this->system_state = -1;
+		this->connection_state = ConnectionState::NOT_CONNECTED;
+	}
+
+	std::string getGraspStateText() {
+		switch (this->grasping_state) {
+			case (wsg_50_common::Status::IDLE): return "IDLE";
+			case (wsg_50_common::Status::GRASPING): return "GRASPING";
+			case (wsg_50_common::Status::NO_PART_FOUND): return "NO_PART_FOUND";
+			case (wsg_50_common::Status::PART_LOST): return "PART_LOST";
+			case (wsg_50_common::Status::HOLDING): return "HOLDING";
+			case (wsg_50_common::Status::RELEASING): return "RELEASING";
+			case (wsg_50_common::Status::POSITIONING): return "POSITIONING";
+			case (wsg_50_common::Status::ERROR): return "ERROR";
+			case (wsg_50_common::Status::UNKNOWN): return "UNKNOWN";
+		}
+	}
 };
 
 class CommandState {
 public:
 	CommandState();
-	CommandState(Message& message, GripperCallback callback = nullptr) {
+	CommandState(Message& message, GripperCallback callback, int timeout_in_ms) {
 		this->message = message;
 		this->callback = callback;
+		this->created = ros::Time::now();
+		this->timeout_in_ms = timeout_in_ms;
 	}
 
 	Message message;
 	GripperCallback callback;
-	ros::Time sent;
+	ros::Time created;
+	int timeout_in_ms;
 };
 
 
@@ -58,7 +107,9 @@ enum class WellKnownMessageId
 	GRASP = 0x25,
 	RELEASE = 0x26,
 	SET_ACCELERATION = 0x30,
+	GET_ACCELERATION = 0x31,
 	SET_GRASP_FORCE = 0x32,
+	GET_GRASP_FORCE = 0x33,
 	STATUS_VALUES = 0x40,
 	GRIPPING_STATE = 0x41,
 	OPENING_VALUES = 0x43,
@@ -76,25 +127,25 @@ class GripperCommunication
 final {
 	public:
 		static constexpr float TIMEOUT_DELAY = 2.5;
-		GripperCommunication(std::string host, int port, int auto_update_frequency = 50);
+		GripperCommunication(std::string host, int port, int auto_update_frequency = 50, int default_timeout_in_ms = 10000);
 		~GripperCommunication() {}
 
-		void sendCommand(Message& message, GripperCallback callback = nullptr);
-		void sendCommandSynchronous(Message& message, int timeout_in_ms = 1000);
+		void sendCommand(Message& message, GripperCallback callback = nullptr, int timeout_in_ms = 0);
+		void sendCommandSynchronous(Message& message, GripperCallback callback = nullptr, int timeout_in_ms = 1000);
 		CommandSubscription subscribe(unsigned char messageId,
 				GripperCallback callback);
 		void unregisterListener(unsigned char messageId, int listenerId);
-		bool acceptsCommands();
+		bool acceptsCommands(std::string& reason);
 		void processMessages(int max_number_of_messages = 100);
 
 		// long running, asynchronous gripper commands
 		void move(float width, float speed, bool stop_on_block,
-				GripperCallback callback = nullptr);
+				GripperCallback callback = nullptr, int timeout_in_ms = 0);
 		void grasp(float width, float speed,
-				GripperCallback callback = nullptr);
+				GripperCallback callback = nullptr, int timeout_in_ms = 0);
 		void release(float width, float speed, GripperCallback callback =
-				nullptr);
-		void homing(GripperCallback callback = nullptr);
+				nullptr, int timeout_in_ms = 0);
+		void homing(GripperCallback callback = nullptr, int timeout_in_ms = 0);
 
 		// short running, synchronous calls to gripper
 		void soft_stop();
@@ -102,9 +153,11 @@ final {
 		void acknowledge_error();
 		void set_force(float force);
 		void set_acceleration(float acceleration);
+		void requestValueUpdate(const unsigned char messageId, GripperCallback callback);
 
 		void connectToGripper(std::string protocol, std::string ip, int port);
 		void disconnectFromGripper(bool announceDisconnect);
+		void valueUpdateCallback(std::shared_ptr<CommandError> error, std::shared_ptr<Message> message);
 		void shutdown();
 
 		GripperState getState();
@@ -131,6 +184,8 @@ final {
 
 		void graspingStateCallback(Message& message);
 		void widthCallback(Message& message);
+		void requestConfiguredAcceleration();
+		void requestConfiguredGraspingForce();
 
 		GripperSocket* gripper_socket;
 		std::map<unsigned char, std::map<int, GripperCallback> > callbacks;
@@ -140,6 +195,7 @@ final {
  		GripperState gripper_state;
  		bool running;
  		int auto_update_frequency;
+ 		int default_command_timeout_in_ms;
  		ros::Time last_received_update;
 	};
 

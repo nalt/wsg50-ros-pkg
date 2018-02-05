@@ -316,8 +316,8 @@ bool getGripperStatusService(wsg_50_common::GetGripperStatus::Request &req,
 	auto gripperState = gripperCom->getState();
 	status.grasping_state_id = gripperState.grasping_state;
 	status.width = gripperState.width;
-	status.current_force = gripperState.force;
-	status.current_speed = gripperState.speed;
+	status.current_force = gripperState.current_force;
+	status.current_speed = gripperState.current_speed;
 	res.status = status;
 	return true;
 }
@@ -668,9 +668,12 @@ void loop_cb(const ros::TimerEvent& ev) {
 		// publish current state
 		status_message.grasping_state_id = gripperState.grasping_state;
 		status_message.width = gripperState.width;
-		status_message.current_force = gripperState.force;
-		status_message.current_speed = gripperState.speed;
+		status_message.grasping_state = gripperState.getGraspStateText();
+		status_message.current_force = gripperState.current_force;
+		status_message.current_speed = gripperState.current_speed;
 		status_message.connection_state = (uint32_t)gripperState.connection_state;
+		status_message.grasping_force = gripperState.configured_force;
+		status_message.acceleration = gripperState.configured_acceleration;
 		g_pub_state.publish(status_message);
 
 		g_pub_heartbeat.publish(heartbeat_msg);
@@ -678,10 +681,10 @@ void loop_cb(const ros::TimerEvent& ev) {
 		joint_states.header.stamp = ros::Time::now();
 		joint_states.position[0] = -gripperState.width / 2000.0;
 		joint_states.position[1] = gripperState.width / 2000.0;
-		joint_states.velocity[0] = gripperState.speed / 1000.0;
-		joint_states.velocity[1] = gripperState.speed / 1000.0;
-		joint_states.effort[0] = gripperState.force;
-		joint_states.effort[1] = gripperState.force;
+		joint_states.velocity[0] = gripperState.current_speed / 1000.0;
+		joint_states.velocity[1] = gripperState.current_speed / 1000.0;
+		joint_states.effort[0] = gripperState.current_force;
+		joint_states.effort[1] = gripperState.current_force;
 		g_pub_joint.publish(joint_states);
 
 		last_publish = ros::Time::now();
@@ -768,7 +771,7 @@ int main(int argc, char **argv) {
 
 
 	printf("Create message processing timer\n");
-	auto tmr = nh.createTimer(ros::Duration(0.001), loop_cb);
+	auto tmr = nh.createTimer(ros::Duration(0.01), loop_cb);
 
 	XmlRpc::XmlRpcValue tmp_list;
 	nh.getParam("controller_list", tmp_list);

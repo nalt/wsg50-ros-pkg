@@ -48,8 +48,8 @@ class GripperActionServer {
 		void cancelCallback(GoalHandle goal_handle);
 		void handleCommand(wsg_50_common::Command command, GoalHandle& goal_handle);
 
-		void abort();
-		void commandCallback(Message& message);
+		void abort(std::string message_text);
+		void commandCallback(std::shared_ptr<CommandError> error, std::shared_ptr<Message> message);
 		void stopCallback(Message& message);
 
 		wsg_50_common::Status fillStatus();

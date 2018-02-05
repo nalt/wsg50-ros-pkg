@@ -2,24 +2,29 @@
 #include "wsg_50/functions.h"
 
 GripperCommunication::GripperCommunication(std::string host, int port,
-		int auto_update_frequency) {
+		int auto_update_frequency, int default_timeout_in_ms) {
 	gripper_socket = new GripperSocket(host, port);
 
 	this->currentCommand = nullptr;
-	gripper_state.force = -1;
-	gripper_state.speed = -1;
-	gripper_state.width = -1;
-	gripper_state.grasping_state = -1;
-	gripper_state.system_state = -1;
-	gripper_state.connection_state = ConnectionState::NOT_CONNECTED;
+	this->default_command_timeout_in_ms = default_timeout_in_ms;
 	this->auto_update_frequency = auto_update_frequency;
 	last_received_update = ros::Time(0);
 	running = true;
 }
 
-bool GripperCommunication::acceptsCommands() {
-	return (this->currentCommand == nullptr) && (this->running == true)
-			&& (this->getState().connection_state == ConnectionState::CONNECTED);
+bool GripperCommunication::acceptsCommands(std::string& reason) {
+	if (this->currentCommand != nullptr) {
+		reason = "Gripper is already executing a command";
+		return false;
+	} else if (this->running == false) {
+		reason = "Gripper communication is shutting down";
+		return false;
+	} else if (this->getState().connection_state != ConnectionState::CONNECTED) {
+		reason = "Gripper is not connected";
+		return false;
+	}
+
+	return true;
 }
 
 void GripperCommunication::activateAutomaticValueUpdates() {
@@ -28,14 +33,22 @@ void GripperCommunication::activateAutomaticValueUpdates() {
 	printf("Request updates for grip state\n");
 	auto subcription = this->subscribe(
 			(unsigned char) WellKnownMessageId::GRIPPING_STATE,
-			[&](Message& message) {this->graspingStateCallback(message);});
+			[&](std::shared_ptr<CommandError> error, std::shared_ptr<Message> message) {
+		if ((error == nullptr) && (message != nullptr)) {
+			this->graspingStateCallback(*message.get());
+		}
+	});
 	this->activateAutoUpdates(
 			(unsigned char) WellKnownMessageId::GRIPPING_STATE, interval_ms);
 	this->subscriptions.push_back(subcription);
 
 	printf("Request updates for opening values\n");
 	this->subscribe((unsigned char) WellKnownMessageId::OPENING_VALUES,
-			[&](Message& message) {this->widthCallback(message);});
+			[&](std::shared_ptr<CommandError> error, std::shared_ptr<Message> message) {
+		if ((error == nullptr) && (message != nullptr)) {
+			this->widthCallback(*message.get());
+		}
+	});
 	this->activateAutoUpdates(
 			(unsigned char) WellKnownMessageId::OPENING_VALUES,
 			interval_ms + 2);
@@ -43,14 +56,22 @@ void GripperCommunication::activateAutomaticValueUpdates() {
 
 	printf("Request updates for force values\n");
 	this->subscribe((unsigned char) WellKnownMessageId::FORCE_VALUES,
-			[&](Message& m) {this->forceCallback(m);});
+			[&](std::shared_ptr<CommandError> error, std::shared_ptr<Message> message) {
+		if ((error == nullptr) && (message != nullptr)) {
+			this->forceCallback(*message.get());
+		}
+	});
 	this->activateAutoUpdates((unsigned char) WellKnownMessageId::FORCE_VALUES,
 			interval_ms + 4);
 	this->subscriptions.push_back(subcription);
 
 	printf("Request updates for speed values\n");
 	this->subscribe((unsigned char) WellKnownMessageId::SPEED_VALUES,
-			[&](Message& m) {this->speedCallback(m);});
+			[&](std::shared_ptr<CommandError> error, std::shared_ptr<Message> message) {
+		if ((error == nullptr) && (message != nullptr)) {
+			this->speedCallback(*message.get());
+		}
+	});
 	this->activateAutoUpdates((unsigned char) WellKnownMessageId::SPEED_VALUES,
 			interval_ms + 6);
 	this->subscriptions.push_back(subcription);
@@ -86,7 +107,7 @@ void GripperCommunication::disconnectFromGripper(bool announceDisconnect) {
 }
 
 void GripperCommunication::grasp(float width, float speed,
-		GripperCallback callback) {
+		GripperCallback callback, int timeout_in_ms) {
 	unsigned char payload_length = 8;
 	unsigned char payload[payload_length];
 
@@ -97,11 +118,11 @@ void GripperCommunication::grasp(float width, float speed,
 	Message message((unsigned char) WellKnownMessageId::GRASP, payload_length,
 			payload);
 
-	this->sendCommand(message, callback);
+	this->sendCommand(message, callback, timeout_in_ms);
 }
 
 void GripperCommunication::release(float width, float speed,
-		GripperCallback callback) {
+		GripperCallback callback, int timeout_in_ms) {
 	unsigned char payload_length = 8;
 	unsigned char payload[payload_length];
 
@@ -112,11 +133,11 @@ void GripperCommunication::release(float width, float speed,
 	Message message((unsigned char) WellKnownMessageId::RELEASE, payload_length,
 			payload);
 
-	this->sendCommand(message, callback);
+	this->sendCommand(message, callback, timeout_in_ms);
 }
 
 void GripperCommunication::move(float width, float speed, bool stop_on_block,
-		GripperCallback callback) {
+		GripperCallback callback, int timeout_in_ms) {
 	printf("Move w %f, s %f\n", width, speed);
 	//auto message_ptr = this->createMoveMessage(width, speed, stop_on_block);
 
@@ -134,7 +155,13 @@ void GripperCommunication::move(float width, float speed, bool stop_on_block,
 	Message message((unsigned char) WellKnownMessageId::MOVE, payload_length,
 			payload);
 
-	this->sendCommand(message, callback);
+	this->sendCommand(message, callback, timeout_in_ms);
+}
+
+void GripperCommunication::requestValueUpdate(const unsigned char messageId, GripperCallback callback) {
+	auto message = Message(messageId, 0, nullptr);
+
+	this->sendCommandSynchronous(message, callback, 1000);
 }
 
 CommandSubscription GripperCommunication::subscribe(unsigned char messageId,
@@ -163,7 +190,7 @@ CommandSubscription GripperCommunication::subscribe(unsigned char messageId,
 }
 
 void GripperCommunication::sendCommand(Message& message,
-		GripperCallback callback) {
+		GripperCallback callback, int timeout_in_ms) {
 	bool stop_command = message.id
 			== (unsigned char) WellKnownMessageId::SOFT_STOP
 			|| message.id == (unsigned char) WellKnownMessageId::EMERGENCY_STOP;
@@ -172,16 +199,16 @@ void GripperCommunication::sendCommand(Message& message,
 		throw MessageQueueFull();
 	}
 
+	auto timeout = timeout_in_ms > 0 ? timeout_in_ms : this->default_command_timeout_in_ms;
 	this->currentCommand = std::make_shared < CommandState
-			> (CommandState(message, callback));
+			> (CommandState(message, callback, timeout));
+	this->updateCommandState(message.id, CommandStateCode::PENDING);
 	this->gripper_socket->sendMessage(message);
 
-	this->updateCommandState(message.id, CommandStateCode::PENDING);
-
-	printf("-- Send message id: %d, len: %d\n", message.id, message.length);
+	printf("-- Sent message id: %d, len: %d\n", message.id, message.length);
 }
 
-void GripperCommunication::sendCommandSynchronous(Message& message,
+void GripperCommunication::sendCommandSynchronous(Message& message, GripperCallback callback,
 		int timeout_in_ms) {
 	printf("--> send: %d\n", message.id);
 	this->gripper_socket->sendMessage(message);
@@ -190,11 +217,19 @@ void GripperCommunication::sendCommandSynchronous(Message& message,
 	auto start_time = ros::Time::now().toSec();
 	bool received_response = false;
 	auto subscription = this->subscribe(message.id,
-			[&](Message& m) {received_response = true;});
+			[&](std::shared_ptr<CommandError> error, std::shared_ptr<Message> message) {
+		if (callback != nullptr) {
+			callback(error, message);
+		}
+		received_response = true;
+	});
 	do {
 		processMessages();
+		if (received_response == true) {
+			break;
+		}
 
-		std::chrono::milliseconds timespan(1);
+		std::chrono::milliseconds timespan(10);
 		std::this_thread::sleep_for(timespan);
 
 		if ((ros::Time::now().toSec() - start_time) * 1000 > timeout_in_ms) {
@@ -223,9 +258,6 @@ void GripperCommunication::unregisterListener(unsigned char messageId,
 }
 
 void GripperCommunication::processMessages(int max_number_of_messages) {
-	int processed_messages = 0;
-	std::shared_ptr<Message> message = this->gripper_socket->getMessage();
-
 	if (this->gripper_state.connection_state
 			!= this->gripper_socket->getConnectionState()) {
 		this->gripper_state.connection_state =
@@ -234,6 +266,8 @@ void GripperCommunication::processMessages(int max_number_of_messages) {
 				== ConnectionState::CONNECTED) {
 			this->last_received_update = ros::Time::now();
 			this->activateAutomaticValueUpdates();
+			this->requestConfiguredAcceleration();
+			this->requestConfiguredGraspingForce();
 		}
 	}
 
@@ -251,9 +285,10 @@ void GripperCommunication::processMessages(int max_number_of_messages) {
 		}
 	}
 
-	while ((message != nullptr) && (processed_messages < max_number_of_messages)) { // message available
-		//printf("-- Received id: %d, len: %d\n", message.id, message.len);
+	int processed_messages = 0;
+	std::shared_ptr<Message> message = this->gripper_socket->getMessage();
 
+	while ((message != nullptr) && (processed_messages < max_number_of_messages)) { // message available
 		GripperCallback callback = nullptr;
 		if ((this->currentCommand != nullptr)
 				&& (this->currentCommand.get()->message.id == message.get()->id)) {
@@ -279,11 +314,22 @@ void GripperCommunication::processMessages(int max_number_of_messages) {
 		this->callbackListeners(message.get()->id, *message.get());
 
 		if (callback != nullptr) {
-			callback(*message.get());
+			callback(nullptr, message);
 		}
 
 		processed_messages += 1;
 		message = this->gripper_socket->getMessage();
+	}
+
+	if (this->currentCommand != nullptr) {
+		if ((ros::Time::now().toSec() - this->currentCommand.get()->created.toSec()) * 1000 > this->currentCommand.get()->timeout_in_ms) {
+			ROS_WARN("Command with message id %d has timed out", (int)this->currentCommand.get()->message.id);
+			if (this->currentCommand.get()->callback != nullptr) {
+				auto error = std::make_shared<CommandError>(CommandError(CommandError::TIMEOUT, "Message id " + std::to_string(this->currentCommand.get()->message.id) + " has timed out."));
+				this->currentCommand.get()->callback(error, nullptr);
+			}
+			this->currentCommand = nullptr;
+		}
 	}
 }
 
@@ -303,14 +349,14 @@ void GripperCommunication::callbackListeners(const unsigned char messageId,
 	if (listenersIterator != this->callbacks.end()) {
 		auto listeners = listenersIterator->second;
 		for (auto& keyValue : listeners) {
-			keyValue.second(message);
+			auto m = std::make_shared<Message>(message);
+			keyValue.second(nullptr, m);
 		}
 	}
 }
 
 void GripperCommunication::activateAutoUpdates(const unsigned char messageId,
 		const int interval_ms) {
-// Payload = 0, except for auto update
 	unsigned char payload[3];
 	memset(payload, 0, 3);
 	if (interval_ms > 0) {
@@ -330,7 +376,6 @@ void GripperCommunication::graspingStateCallback(Message& message) {
 		if (status == E_SUCCESS) {
 			this->last_received_update = ros::Time::now();
 			this->gripper_state.grasping_state = message.data[2];
-			//printf("-- Gripper State: id: %d, len: %d, state: %d\n", message.id, message.len, message.data[2]);
 		}
 	}
 }
@@ -341,23 +386,34 @@ void GripperCommunication::speedCallback(Message& message) {
 		if (status == E_SUCCESS) {
 			this->last_received_update = ros::Time::now();
 			float speed_values = convert(&message.data[2]);
-			this->gripper_state.speed = speed_values;
-			//printf("-- Gripper Opening: id: %d, len: %d, state: %d\n", message.id, message.len, message.data[2]);
+			this->gripper_state.current_speed = speed_values;
 		}
 	}
 }
 
 void GripperCommunication::forceCallback(Message& message) {
 	if (message.length > 0) {
-		//printf("Force callback id: %d\n", message.id);
 		auto status = (status_t) make_short(message.data[0], message.data[1]);
 		if (status == E_SUCCESS) {
 			this->last_received_update = ros::Time::now();
 			float force_values = convert(&message.data[2]);
-			this->gripper_state.force = force_values;
-			//printf("-- Gripper Force: id: %d, len: %d, state: %d\n", message.id, message.len, message.data[2]);
+			this->gripper_state.current_force = force_values;
 		}
 	}
+}
+
+void GripperCommunication::requestConfiguredAcceleration() {
+	this->requestValueUpdate(
+			(unsigned char)WellKnownMessageId::GET_ACCELERATION,
+			[&](auto error, auto message){this->valueUpdateCallback(error, message);}
+	);
+}
+
+void GripperCommunication::requestConfiguredGraspingForce() {
+	this->requestValueUpdate(
+			(unsigned char)WellKnownMessageId::GET_GRASP_FORCE,
+			[&](auto error, auto message){this->valueUpdateCallback(error, message);}
+	);
 }
 
 void GripperCommunication::shutdown() {
@@ -369,6 +425,21 @@ void GripperCommunication::shutdown() {
 	}
 }
 
+void GripperCommunication::valueUpdateCallback(std::shared_ptr<CommandError> error, std::shared_ptr<Message> message) {
+	if ((error == nullptr) && (message != nullptr)) {
+		auto msg = message.get();
+		auto status = (status_t) make_short(msg->data[0], msg->data[1]);
+		if (status == E_SUCCESS) {
+			float value = convert(&message->data[2]);
+			if (msg->id == (unsigned char)WellKnownMessageId::GET_ACCELERATION) {
+				this->gripper_state.configured_acceleration = value;
+			} else if (msg->id == (unsigned char)WellKnownMessageId::GET_GRASP_FORCE) {
+				this->gripper_state.configured_force = value;
+			}
+		}
+	}
+}
+
 void GripperCommunication::widthCallback(Message& message) {
 	if (message.length > 0) {
 		auto status = (status_t) make_short(message.data[0], message.data[1]);
@@ -376,7 +447,6 @@ void GripperCommunication::widthCallback(Message& message) {
 			this->last_received_update = ros::Time::now();
 			float opening_value = convert(&message.data[2]);
 			this->gripper_state.width = opening_value;
-			//printf("-- Gripper Opening: id: %d, len: %d, state: %d\n", message.id, message.len, message.data[2]);
 		}
 	}
 }
@@ -391,12 +461,12 @@ void GripperCommunication::updateCommandState(unsigned char messageId,
 	}
 }
 
-void GripperCommunication::homing(GripperCallback callback) {
+void GripperCommunication::homing(GripperCallback callback, int timeout_in_ms) {
 	unsigned char payload[1];
 	payload[0] = 0x00;
 	Message m((unsigned char) WellKnownMessageId::HOMING, 1, payload);
 
-	this->sendCommand(m, callback);
+	this->sendCommand(m, callback, timeout_in_ms);
 }
 
 void GripperCommunication::acknowledge_error() {
@@ -429,6 +499,7 @@ void GripperCommunication::set_force(float force) {
 	Message m((unsigned char) WellKnownMessageId::SET_GRASP_FORCE, 4, payload);
 
 	this->sendCommandSynchronous(m);
+	this->requestConfiguredGraspingForce();
 }
 
 void GripperCommunication::set_acceleration(float acceleration) {
@@ -438,5 +509,6 @@ void GripperCommunication::set_acceleration(float acceleration) {
 	Message m((unsigned char) WellKnownMessageId::SET_ACCELERATION, 4, payload);
 
 	this->sendCommandSynchronous(m);
+	this->requestConfiguredAcceleration();
 }
 

@@ -27,6 +27,7 @@ GripperSocket::GripperSocket(std::string host, int port){
 
 void GripperSocket::connectSocket() {
 	sockaddr_in serv_addr;
+	ROS_INFO("Try to connect to gripper at %s:%d", this->host.c_str(), this->port);
 
 	int fd = socket(PF_INET, SOCK_STREAM, IPPROTO_TCP);
 	if (fd < 0)
@@ -51,11 +52,6 @@ void GripperSocket::connectSocket() {
     timeout.tv_usec = 0;
     setsockopt(fd, SOL_SOCKET, SO_RCVTIMEO, (void *) &timeout, (socklen_t) sizeof(struct timeval));
 
-	if (connect(fd, (struct sockaddr *)&serv_addr, sizeof(serv_addr)) < 0)
-	{
-		throw ConnectionOpenError("Could not open connection to " + this->host + ":" + std::to_string(this->port));
-	}
-
 	/* Set socket to non-blocking */
 	int flags;
 	if ((flags = fcntl(fd, F_GETFL, 0)) < 0)
@@ -67,6 +63,31 @@ void GripperSocket::connectSocket() {
 	if (fcntl(fd, F_SETFL, flags | O_NONBLOCK) < 0)
 	{
 		throw SocketConfigrurationError("");
+	}
+
+	int connect_result = 0;
+	if ((connect_result = connect(fd, (struct sockaddr *)&serv_addr, sizeof(serv_addr))) < 0)
+	{
+		if (errno == EINPROGRESS) {
+			struct timeval tv;
+			fd_set fdset;
+			tv.tv_sec = 5;
+			tv.tv_usec = 0;
+			FD_ZERO(&fdset);
+			FD_SET(fd, &fdset);
+			if (select(fd + 1, NULL, &fdset, NULL, &tv) > 0) {
+				socklen_t lon = sizeof(int);
+				int valopt = 0;
+				getsockopt(fd, SOL_SOCKET, SO_ERROR, (void*)(&valopt), &lon);
+				if (valopt) {
+				   throw ConnectionOpenError("Could not open connection to " + this->host + ":" + std::to_string(this->port));
+				}
+			} else {
+				throw ConnectionOpenError("Could not open connection to " + this->host + ":" + std::to_string(this->port));
+			}
+		} else {
+			throw ConnectionOpenError("Could not open connection to " + this->host + ":" + std::to_string(this->port));
+		}
 	}
 
 	this->connection_state = ConnectionState::CONNECTED;
@@ -195,7 +216,7 @@ void GripperSocket::readLoop() {
 			}
 		}
 
-		std::chrono::milliseconds timespan(1);
+		std::chrono::milliseconds timespan(10);
 		std::this_thread::sleep_for(timespan);
 	}
 }
