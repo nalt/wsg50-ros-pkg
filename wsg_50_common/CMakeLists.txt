@@ -44,10 +44,10 @@ find_package(catkin REQUIRED COMPONENTS
 ##   * add every package in MSG_DEP_SET to generate_messages(DEPENDENCIES ...)
 
 ## Generate messages in the 'msg' folder
-add_message_files(FILES Cmd.msg Status.msg Command.msg)
+add_message_files(FILES Status.msg Command.msg)
 
 ## Generate services in the 'srv' folder
-add_service_files(FILES Conf.srv Incr.srv Move.srv GetGripperStatus.srv)
+add_service_files(FILES SetValue.srv GetGripperStatus.srv)
 
 ## Generate actions in the 'action' folder
 add_action_files(
