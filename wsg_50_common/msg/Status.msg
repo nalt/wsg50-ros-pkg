@@ -2,11 +2,11 @@ int32 grasping_state_id
 string grasping_state
 int32 return_code
 int32 connection_state
-float32 width
-float32 current_speed
-float32 current_force
-float32 grasping_force
-float32 acceleration
+float64 width
+float64 current_speed
+float64 current_force
+float64 grasping_force
+float64 acceleration
 
 # grasping state IDs
 int32 IDLE = 0
