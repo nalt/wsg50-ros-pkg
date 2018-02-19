@@ -245,6 +245,8 @@ void GripperSocket::readLoop()
       catch (...)
       {
         ROS_WARN("Error while connecting to %s:%d using TCP/IP.", this->host.c_str(), this->port);
+        std::chrono::milliseconds timespan(200);
+        std::this_thread::sleep_for(timespan);
       }
     }
 
