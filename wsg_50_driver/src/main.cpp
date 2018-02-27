@@ -588,7 +588,7 @@ void loop_cb(const ros::TimerEvent& ev)
     g_pub_heartbeat.publish(heartbeat_msg);
 
     joint_states.header.stamp = ros::Time::now();
-    joint_states.position[0] = -gripperState.width / 2000.0;
+    joint_states.position[0] = gripperState.width / 2000.0;
     //joint_states.position[1] = gripperState.width / 2000.0;
     joint_states.velocity[0] = gripperState.current_speed / 1000.0;
     //joint_states.velocity[1] = gripperState.current_speed / 1000.0;
