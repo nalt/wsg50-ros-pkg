@@ -138,6 +138,9 @@ void GripperActionServer::goalCallback(GoalHandle goal_handle)
 void GripperActionServer::handleCommand(wsg_50_common::Command command, GoalHandle& goal_handle)
 {
   printf("handle command\n");
+  command.width = command.width * 1000;
+  command.speed = command.speed * 1000;
+
   switch (command.command_id)
   {
     case (wsg_50_common::Command::MOVE):
