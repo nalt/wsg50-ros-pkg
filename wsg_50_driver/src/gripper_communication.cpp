@@ -517,7 +517,7 @@ void GripperCommunication::homing(GripperCallback callback, int timeout_in_ms)
   this->sendCommand(m, callback, timeout_in_ms);
 }
 
-void GripperCommunication::acknowledge_error()
+void GripperCommunication::acknowledge_error(GripperCallback callback, int timeout_in_ms)
 {
   unsigned char payload[3];
   payload[0] = 0x61;
@@ -526,14 +526,14 @@ void GripperCommunication::acknowledge_error()
 
   Message m((unsigned char)WellKnownMessageId::ACK_ERROR, 3, payload);
 
-  this->sendCommandSynchronous(m);
+  this->sendCommandSynchronous(m, callback, timeout_in_ms);
 }
 
-void GripperCommunication::soft_stop()
+void GripperCommunication::soft_stop(GripperCallback callback, int timeout_in_ms)
 {
   Message m((unsigned char)WellKnownMessageId::SOFT_STOP, 0, nullptr);
 
-  this->sendCommandSynchronous(m);
+  this->sendCommandSynchronous(m, callback, timeout_in_ms);
 }
 
 void GripperCommunication::fast_stop()
@@ -543,14 +543,14 @@ void GripperCommunication::fast_stop()
   this->sendCommandSynchronous(m);
 }
 
-void GripperCommunication::set_force(float force)
+void GripperCommunication::set_force(float force, GripperCallback callback, int timeout_in_ms)
 {
   unsigned char payload[4];
   memcpy(&payload[0], &force, sizeof(float));
 
   Message m((unsigned char)WellKnownMessageId::SET_GRASP_FORCE, 4, payload);
 
-  this->sendCommandSynchronous(m);
+  this->sendCommandSynchronous(m, callback, timeout_in_ms);
   this->requestConfiguredGraspingForce();
 }
 

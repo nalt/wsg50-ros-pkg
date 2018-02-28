@@ -167,10 +167,10 @@ public:
   void homing(GripperCallback callback = nullptr, int timeout_in_ms = 0);
 
   // short running, synchronous calls to gripper
-  void soft_stop();
+  void soft_stop(GripperCallback callback = nullptr, int timeout_in_ms = 1000);
   void fast_stop();
-  void acknowledge_error();
-  void set_force(float force);
+  void acknowledge_error(GripperCallback callback = nullptr, int timeout_in_ms = 1000);
+  void set_force(float force, GripperCallback callback = nullptr, int timeout_in_ms = 1000);
   void set_acceleration(float acceleration);
   void requestValueUpdate(const unsigned char messageId, GripperCallback callback);
 

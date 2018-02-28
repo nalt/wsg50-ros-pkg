@@ -112,7 +112,7 @@ void GripperActionServer::goalCallback(GoalHandle goal_handle)
   auto goal = goal_handle.getGoal();
 
   std::string reason_for_rejection = "";
-  if (this->gripper_com.acceptsCommands(reason_for_rejection) == false)
+  if ((this->gripper_com.acceptsCommands(reason_for_rejection) == false) && (goal->command.command_id != 100) )
   {
     wsg_50_common::CommandResult result;
     result.status = this->fillStatus();
@@ -148,6 +148,7 @@ void GripperActionServer::handleCommand(wsg_50_common::Command command, GoalHand
       try
       {
         this->action_state.expected_grasping_state = wsg_50_common::Status::IDLE;
+        this->gripper_com.set_force(command.force, nullptr, 1000);
         this->gripper_com.move(command.width, command.speed, command.stop_on_block,
                                [&](std::shared_ptr<CommandError> error, std::shared_ptr<Message> message) {
                                  this->commandCallback(error, message);
@@ -167,6 +168,7 @@ void GripperActionServer::handleCommand(wsg_50_common::Command command, GoalHand
       try
       {
         this->action_state.expected_grasping_state = wsg_50_common::Status::HOLDING;
+        this->gripper_com.set_force(command.force, nullptr, 1000);
         this->gripper_com.grasp(command.width, command.speed,
                                 [&](std::shared_ptr<CommandError> error, std::shared_ptr<Message> message) {
                                   this->commandCallback(error, message);
@@ -211,6 +213,39 @@ void GripperActionServer::handleCommand(wsg_50_common::Command command, GoalHand
         wsg_50_common::CommandResult result;
         result.status = this->fillStatus();
         goal_handle.setAborted(result, "Error while sending the move command to the gripper");
+      }
+      break;
+    }
+    case (100):
+    {
+      try
+      {
+        this->gripper_com.soft_stop([&](std::shared_ptr<CommandError> error, std::shared_ptr<Message> message) {
+          this->commandCallback(error, message);
+        });
+      }
+      catch (...)
+      {
+        wsg_50_common::CommandResult result;
+        result.status = this->fillStatus();
+        goal_handle.setAborted(result, "Error while sending the stop command to the gripper");
+      }
+      break;
+    }
+    case (105):
+    {
+      try
+      {
+        this->action_state.expected_grasping_state = wsg_50_common::Status::IDLE;
+        this->gripper_com.acknowledge_error([&](std::shared_ptr<CommandError> error, std::shared_ptr<Message> message) {
+          this->commandCallback(error, message);
+        });
+      }
+      catch (...)
+      {
+        wsg_50_common::CommandResult result;
+        result.status = this->fillStatus();
+        goal_handle.setAborted(result, "Error while sending the ack command to the gripper");
       }
       break;
     }
