@@ -216,7 +216,7 @@ void GripperActionServer::handleCommand(wsg_50_common::Command command, GoalHand
       }
       break;
     }
-    case (100):
+    case (wsg_50_common::Command::SOFT_STOP):
     {
       try
       {
@@ -232,7 +232,7 @@ void GripperActionServer::handleCommand(wsg_50_common::Command command, GoalHand
       }
       break;
     }
-    case (105):
+    case (wsg_50_common::Command::ACKNOWLEDGE_ERROR):
     {
       try
       {
