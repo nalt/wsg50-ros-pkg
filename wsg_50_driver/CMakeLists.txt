@@ -34,6 +34,7 @@ set(DRIVER_SOURCES
   src/interface.cpp include/wsg_50/interface.h
   src/gripper_communication.cpp include/wsg_50/gripper_communication.h
   src/gripper_action_server.cpp include/wsg_50/gripper_action_server.h
+  src/gripper_standard_action_server.cpp include/wsg_50/gripper_standard_action_server.h
   src/gripper_socket.cpp include/wsg_50/gripper_socket.h
   include/wsg_50/node_state.h
   src/main.cpp
