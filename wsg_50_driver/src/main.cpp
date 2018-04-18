@@ -47,6 +47,7 @@
 #include "wsg_50/gripper_communication.h"
 #include "wsg_50/gripper_action_server.h"
 #include "wsg_50/node_state.h"
+#include "wsg_50/gripper_standard_action_server.h"
 
 #include <ros/ros.h>
 #include "std_msgs/String.h"
@@ -84,6 +85,7 @@ float g_goal_position = NAN, g_goal_speed = NAN, g_speed = 10.0;
 wsg_50_common::Status status_message;
 NodeState node_state;
 GripperActionServer* action_server = nullptr;
+GripperStandardActionServer* action_standard_server = nullptr;
 ros::Time last_publish = ros::Time(0);
 std::string prefix;
 sensor_msgs::JointState joint_states;
@@ -544,6 +546,7 @@ void loop_cb(const ros::TimerEvent& ev)
     case (NodeStateType::NOMINAL):
     {
       action_server->doWork();
+      action_standard_server->doWork();
 
       heartbeat_msg.header.stamp = ros::Time::now();
       if ((gripperState.grasping_state == wsg_50_common::Status::UNKNOWN) ||
@@ -735,6 +738,14 @@ int main(int argc, char** argv)
     // Open action server
     action_server = new GripperActionServer(nh, controller_name + "/" + action_ns, *gripperCom, node_state);
     action_server->start();
+    //standard action server
+    //TODO make speed, stop_on_block as ros parameters
+    double speed = 0.15;
+    bool stop_on_block = false;
+    //TODO check this action name
+    action_standard_server = new GripperStandardActionServer(nh, controller_name + "/" + action_ns + "_standard"
+                                                             , *gripperCom, node_state, speed, stop_on_block);
+    action_standard_server->start();
 
     try
     {
@@ -764,6 +775,11 @@ int main(int argc, char** argv)
     action_server->shutdown();
     delete action_server;
     action_server = nullptr;
+
+    action_standard_server->shutdown();
+    delete action_standard_server;
+    action_standard_server = nullptr;
+
     setAccSS.shutdown();
     setForceSS.shutdown();
     stopSS.shutdown();

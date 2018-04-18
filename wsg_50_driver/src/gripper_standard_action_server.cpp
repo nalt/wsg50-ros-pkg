@@ -110,7 +110,7 @@ void GripperStandardActionServer::shutdown()
   }
 }
 
-void GripperStandardActionServer::goalCallback(GoalHandle goal_handle)
+void GripperStandardActionServer::goalCallback(GoalHandleStandard goal_handle)
 {
   auto goal = goal_handle.getGoal();
 
@@ -138,7 +138,7 @@ void GripperStandardActionServer::goalCallback(GoalHandle goal_handle)
   }
 }
 
-void GripperStandardActionServer::handleCommand(control_msgs::GripperCommand command, GoalHandle& goal_handle)
+void GripperStandardActionServer::handleCommand(control_msgs::GripperCommand command, GoalHandleStandard& goal_handle)
 {
   printf("handle command\n");
 
@@ -195,7 +195,7 @@ void GripperStandardActionServer::stopCallback(Message& message)
   this->abort("Received stop command");
 }
 
-void GripperStandardActionServer::cancelCallback(GoalHandle goal_handle)
+void GripperStandardActionServer::cancelCallback(GoalHandleStandard goal_handle)
 {
   this->abort("Received cancel callback");
 }
