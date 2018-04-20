@@ -49,8 +49,9 @@ private:
   CommandSubscription soft_stop_subscription;
   CommandSubscription emergency_stop_subscription;
   CommandSubscription grasping_state_subscription;
-  float speed;
+  double speed;
   bool stop_on_block;
+  double command_max_effort;
 
   void goalCallback(GoalHandleStandard goal_handle);
   void cancelCallback(GoalHandleStandard goal_handle);

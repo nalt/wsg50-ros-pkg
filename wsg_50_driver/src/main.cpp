@@ -742,7 +742,6 @@ int main(int argc, char** argv)
     //TODO make speed, stop_on_block as ros parameters
     double speed = 0.15;
     bool stop_on_block = false;
-    //TODO check this action name
     action_standard_server = new GripperStandardActionServer(nh, controller_name + "/" + action_ns + "_standard"
                                                              , *gripperCom, node_state, speed, stop_on_block);
     action_standard_server->start();

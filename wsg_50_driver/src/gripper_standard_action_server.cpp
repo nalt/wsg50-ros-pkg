@@ -1,12 +1,9 @@
 #include "wsg_50/gripper_standard_action_server.h"
 #define NO_EXPECTATION -10
 
-//TODO check all this->fillStatus(); after editing it
-//TODO implement stalled & reached_goal in result & feedback
-
 GripperStandardActionServer::GripperStandardActionServer(ros::NodeHandle& node_handle, std::string base_name,
                                          GripperCommunication& gripper_com, NodeState& node_state, float speed, bool stop_on_block)
-  : node_handle(node_handle), gripper_com(gripper_com), node_state(node_state), speed(speed), stop_on_block(stop_on_block)
+  : node_handle(node_handle), gripper_com(gripper_com), node_state(node_state), speed(speed * 1000), stop_on_block(stop_on_block)
 {
   this->base_name = base_name;
   this->action_server_started = false;
@@ -58,28 +55,32 @@ void GripperStandardActionServer::doWork()
   if (this->action_state.state == ActionStateCode::DONE)
   {
     control_msgs::GripperCommandResult result;
-    result = this->fillStatus();
-    //result.status.return_code = this->action_state.return_code;
     if (this->action_state.return_code == E_SUCCESS)
     {
       if (this->action_state.expected_grasping_state == NO_EXPECTATION)
       {
+        result = this->fillStatus();
+        result.reached_goal = true;
         this->current_goal_handle.setSucceeded(result, "Goal reached");
       }
       else
       {
         if (this->action_state.expected_grasping_state == this->gripper_com.getState().grasping_state)
         {
+          result = this->fillStatus();
+          result.reached_goal = true;
           this->current_goal_handle.setSucceeded(result, "Goal reached");
         }
         else
         {
+          result = this->fillStatus();
           this->current_goal_handle.setAborted(result, "Goal aborted, wrong grasping state");
         }
       }
     }
     else
     {
+      result = this->fillStatus();
       this->current_goal_handle.setAborted(result, "Goal aborted, command did not return success code");
     }
 
@@ -113,12 +114,13 @@ void GripperStandardActionServer::shutdown()
 void GripperStandardActionServer::goalCallback(GoalHandleStandard goal_handle)
 {
   auto goal = goal_handle.getGoal();
+  goal->command.max_effort;
 
   std::string reason_for_rejection = "";
   if (this->gripper_com.acceptsCommands(reason_for_rejection) == false)
   {
     control_msgs::GripperCommandResult result;
-    result = this->fillStatus(); //TODO check after inplementing fillStatus
+    result = this->fillStatus();
     goal_handle.setRejected(result, reason_for_rejection);
   }
   else
@@ -142,9 +144,7 @@ void GripperStandardActionServer::handleCommand(control_msgs::GripperCommand com
 {
   printf("handle command\n");
 
-  //TODO why multiply by 1000 when using the custom action version
-  //command.width = command.width * 1000;
-  //command.speed = command.speed * 1000;
+  command.position = command.position * 1000;
 
   try
   {
@@ -202,12 +202,17 @@ void GripperStandardActionServer::cancelCallback(GoalHandleStandard goal_handle)
 
 control_msgs::GripperCommandResult GripperStandardActionServer::fillStatus()
 {
-  //TODO
   control_msgs::GripperCommandResult status;
   auto gripperState = this->gripper_com.getState();
-  status.position = gripperState.width; //TODO is this the current width ???????
+  status.position = gripperState.width;
   status.effort = gripperState.current_force;
-  return status;
+  status.reached_goal = false;
+
+  //check if gripper stalled
+  if (gripperState.current_force >= command_max_effort && gripperState.current_speed == 0)
+    status.stalled = true;
+  else
+    status.stalled = false;
 }
 
 void GripperStandardActionServer::graspingStateCallback(Message& message)
