@@ -293,7 +293,11 @@ wsg_50_common::Status GripperActionServer::fillStatus()
   wsg_50_common::Status status;
   auto gripperState = this->gripper_com.getState();
   status.grasping_state_id = gripperState.grasping_state;
-  status.width = gripperState.width;
+  status.width = gripperState.width / 1000;
+  status.current_force = gripperState.current_force;
+  status.current_speed = gripperState.current_speed / 1000;
+  status.grasping_force = gripperState.configured_force;
+  status.acceleration = gripperState.configured_acceleration;
 
   return status;
 }

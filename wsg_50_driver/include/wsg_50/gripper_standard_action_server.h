@@ -33,7 +33,7 @@ class GripperStandardActionServer
 {
 public:
   GripperStandardActionServer(ros::NodeHandle& node_handle, std::string base_name, GripperCommunication& gripper_com,
-                      NodeState& node_state, float speed, bool stop_on_block);
+                      NodeState& node_state, float speed);
   void start();
   void shutdown();
   void doWork();
@@ -52,6 +52,7 @@ private:
   double speed;
   bool stop_on_block;
   double command_max_effort;
+  double command_position;
 
   void goalCallback(GoalHandleStandard goal_handle);
   void cancelCallback(GoalHandleStandard goal_handle);

@@ -2,8 +2,8 @@
 #define NO_EXPECTATION -10
 
 GripperStandardActionServer::GripperStandardActionServer(ros::NodeHandle& node_handle, std::string base_name,
-                                         GripperCommunication& gripper_com, NodeState& node_state, float speed, bool stop_on_block)
-  : node_handle(node_handle), gripper_com(gripper_com), node_state(node_state), speed(speed * 1000), stop_on_block(stop_on_block)
+                                         GripperCommunication& gripper_com, NodeState& node_state, float speed)
+  : node_handle(node_handle), gripper_com(gripper_com), node_state(node_state), speed(speed * 1000)
 {
   this->base_name = base_name;
   this->action_server_started = false;
@@ -11,6 +11,7 @@ GripperStandardActionServer::GripperStandardActionServer(ros::NodeHandle& node_h
   this->action_state.state = ActionStateCode::NO_GOAL;
   this->action_state.return_code = -1;
   this->action_state.expected_grasping_state = NO_EXPECTATION;
+  this->stop_on_block = false;
 
   grasping_state_subscription =
       this->gripper_com.subscribe((unsigned char)WellKnownMessageId::GRIPPING_STATE,
@@ -57,26 +58,9 @@ void GripperStandardActionServer::doWork()
     control_msgs::GripperCommandResult result;
     if (this->action_state.return_code == E_SUCCESS)
     {
-      if (this->action_state.expected_grasping_state == NO_EXPECTATION)
-      {
-        result = this->fillStatus();
-        result.reached_goal = true;
-        this->current_goal_handle.setSucceeded(result, "Goal reached");
-      }
-      else
-      {
-        if (this->action_state.expected_grasping_state == this->gripper_com.getState().grasping_state)
-        {
-          result = this->fillStatus();
-          result.reached_goal = true;
-          this->current_goal_handle.setSucceeded(result, "Goal reached");
-        }
-        else
-        {
-          result = this->fillStatus();
-          this->current_goal_handle.setAborted(result, "Goal aborted, wrong grasping state");
-        }
-      }
+      result = this->fillStatus();
+      result.reached_goal = true;
+      this->current_goal_handle.setSucceeded(result, "Goal reached");
     }
     else
     {
@@ -145,15 +129,16 @@ void GripperStandardActionServer::handleCommand(control_msgs::GripperCommand com
   printf("handle command\n");
 
   command.position = command.position * 1000;
+  this->command_position = command.position;
+  this->command_max_effort = command.max_effort;
 
   try
   {
-    this->action_state.expected_grasping_state = wsg_50_common::Status::IDLE;
-    this->gripper_com.set_force(command.max_effort, nullptr, 1000);
     this->gripper_com.move(command.position, this->speed, this->stop_on_block,
-                           [&](std::shared_ptr<CommandError> error, std::shared_ptr<Message> message) {
-      this->commandCallback(error, message);
-    });
+                            [&](std::shared_ptr<CommandError> error, std::shared_ptr<Message> message) {
+     this->commandCallback(error, message);
+     this->gripper_com.acknowledge_error();
+     });
   }
   catch (std::runtime_error& ex)
   {
@@ -204,15 +189,24 @@ control_msgs::GripperCommandResult GripperStandardActionServer::fillStatus()
 {
   control_msgs::GripperCommandResult status;
   auto gripperState = this->gripper_com.getState();
-  status.position = gripperState.width;
-  status.effort = gripperState.current_force;
+  status.position = static_cast<double>(gripperState.width / 1000);
+  status.effort = static_cast<double>(gripperState.current_force);
   status.reached_goal = false;
 
+  double position_tolerance = 1; // mm
+  if (this->command_position < gripperState.width + position_tolerance && this->command_position > gripperState.width - position_tolerance)
+    status.reached_goal = true;
+  else
+    status.reached_goal = false;
+
   //check if gripper stalled
-  if (gripperState.current_force >= command_max_effort && gripperState.current_speed == 0)
+  double speed_tolerance = 1; // mm/s
+  if (gripperState.current_force >= this->command_max_effort && gripperState.current_speed < speed_tolerance)
     status.stalled = true;
   else
     status.stalled = false;
+
+  return status;
 }
 
 void GripperStandardActionServer::graspingStateCallback(Message& message)

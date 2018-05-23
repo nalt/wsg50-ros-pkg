@@ -579,10 +579,10 @@ void loop_cb(const ros::TimerEvent& ev)
   {
     // publish current state
     status_message.grasping_state_id = gripperState.grasping_state;
-    status_message.width = gripperState.width;
+    status_message.width = gripperState.width / 1000;
     status_message.grasping_state = gripperState.getGraspStateText();
     status_message.current_force = gripperState.current_force;
-    status_message.current_speed = gripperState.current_speed;
+    status_message.current_speed = gripperState.current_speed / 1000;
     status_message.connection_state = (uint32_t)gripperState.connection_state;
     status_message.grasping_force = gripperState.configured_force;
     status_message.acceleration = gripperState.configured_acceleration;
@@ -739,11 +739,10 @@ int main(int argc, char** argv)
     action_server = new GripperActionServer(nh, controller_name + "/" + action_ns, *gripperCom, node_state);
     action_server->start();
     //standard action server
-    //TODO make speed, stop_on_block as ros parameters
-    double speed = 0.15;
-    bool stop_on_block = false;
+    double standard_action_speed;
+    nh.param<double>("standard_action_speed", standard_action_speed, 0.015);
     action_standard_server = new GripperStandardActionServer(nh, controller_name + "/" + action_ns + "_standard"
-                                                             , *gripperCom, node_state, speed, stop_on_block);
+                                                             , *gripperCom, node_state, standard_action_speed);
     action_standard_server->start();
 
     try
