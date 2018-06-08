@@ -745,7 +745,7 @@ int main(int argc, char** argv)
     //standard action server
     double standard_action_speed;
     nh.param<double>("standard_action_speed", standard_action_speed, 0.015);
-    action_standard_server = new GripperStandardActionServer(nh, controller_name + "/" + action_ns + "_standard"
+    action_standard_server = new GripperStandardActionServer(nh, controller_name + "/" + "gripper_command"
                                                              , *gripperCom, node_state, standard_action_speed);
     action_standard_server->start();
 
