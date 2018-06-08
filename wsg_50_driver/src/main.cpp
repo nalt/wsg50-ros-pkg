@@ -47,6 +47,7 @@
 #include "wsg_50/gripper_communication.h"
 #include "wsg_50/gripper_action_server.h"
 #include "wsg_50/node_state.h"
+#include "wsg_50/gripper_standard_action_server.h"
 
 #include <ros/ros.h>
 #include "std_msgs/String.h"
@@ -84,6 +85,7 @@ float g_goal_position = NAN, g_goal_speed = NAN, g_speed = 10.0;
 wsg_50_common::Status status_message;
 NodeState node_state;
 GripperActionServer* action_server = nullptr;
+GripperStandardActionServer* action_standard_server = nullptr;
 ros::Time last_publish = ros::Time(0);
 std::string prefix;
 sensor_msgs::JointState joint_states;
@@ -210,9 +212,13 @@ bool getGripperStatusService(wsg_50_common::GetGripperStatus::Request& req,
   wsg_50_common::Status status;
   auto gripperState = gripperCom->getState();
   status.grasping_state_id = gripperState.grasping_state;
-  status.width = gripperState.width;
+  status.width = gripperState.width / 1000;
+  status.grasping_state = gripperState.getGraspStateText();
   status.current_force = gripperState.current_force;
-  status.current_speed = gripperState.current_speed;
+  status.current_speed = gripperState.current_speed / 1000;
+  status.connection_state = (uint32_t)gripperState.connection_state;
+  status.grasping_force = gripperState.configured_force;
+  status.acceleration = gripperState.configured_acceleration;
   res.status = status;
   return true;
 }
@@ -544,6 +550,7 @@ void loop_cb(const ros::TimerEvent& ev)
     case (NodeStateType::NOMINAL):
     {
       action_server->doWork();
+      action_standard_server->doWork();
 
       heartbeat_msg.header.stamp = ros::Time::now();
       if ((gripperState.grasping_state == wsg_50_common::Status::UNKNOWN) ||
@@ -576,10 +583,10 @@ void loop_cb(const ros::TimerEvent& ev)
   {
     // publish current state
     status_message.grasping_state_id = gripperState.grasping_state;
-    status_message.width = gripperState.width;
+    status_message.width = gripperState.width / 1000;
     status_message.grasping_state = gripperState.getGraspStateText();
     status_message.current_force = gripperState.current_force;
-    status_message.current_speed = gripperState.current_speed;
+    status_message.current_speed = gripperState.current_speed / 1000;
     status_message.connection_state = (uint32_t)gripperState.connection_state;
     status_message.grasping_force = gripperState.configured_force;
     status_message.acceleration = gripperState.configured_acceleration;
@@ -735,6 +742,12 @@ int main(int argc, char** argv)
     // Open action server
     action_server = new GripperActionServer(nh, controller_name + "/" + action_ns, *gripperCom, node_state);
     action_server->start();
+    //standard action server
+    double standard_action_speed;
+    nh.param<double>("standard_action_speed", standard_action_speed, 0.015);
+    action_standard_server = new GripperStandardActionServer(nh, controller_name + "/" + "gripper_command"
+                                                             , *gripperCom, node_state, standard_action_speed);
+    action_standard_server->start();
 
     try
     {
@@ -764,6 +777,11 @@ int main(int argc, char** argv)
     action_server->shutdown();
     delete action_server;
     action_server = nullptr;
+
+    action_standard_server->shutdown();
+    delete action_standard_server;
+    action_standard_server = nullptr;
+
     setAccSS.shutdown();
     setForceSS.shutdown();
     stopSS.shutdown();
