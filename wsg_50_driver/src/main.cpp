@@ -212,9 +212,13 @@ bool getGripperStatusService(wsg_50_common::GetGripperStatus::Request& req,
   wsg_50_common::Status status;
   auto gripperState = gripperCom->getState();
   status.grasping_state_id = gripperState.grasping_state;
-  status.width = gripperState.width;
+  status.width = gripperState.width / 1000;
+  status.grasping_state = gripperState.getGraspStateText();
   status.current_force = gripperState.current_force;
-  status.current_speed = gripperState.current_speed;
+  status.current_speed = gripperState.current_speed / 1000;
+  status.connection_state = (uint32_t)gripperState.connection_state;
+  status.grasping_force = gripperState.configured_force;
+  status.acceleration = gripperState.configured_acceleration;
   res.status = status;
   return true;
 }
