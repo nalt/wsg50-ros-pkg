@@ -298,6 +298,7 @@ wsg_50_common::Status GripperActionServer::fillStatus()
   status.current_speed = gripperState.current_speed / 1000;
   status.grasping_force = gripperState.configured_force;
   status.acceleration = gripperState.configured_acceleration;
+  status.connection_state = static_cast<int>(gripperState.connection_state);
 
   return status;
 }
