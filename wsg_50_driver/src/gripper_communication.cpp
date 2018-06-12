@@ -9,6 +9,8 @@ GripperCommunication::GripperCommunication(std::string host, int port, int auto_
   this->currentCommand = nullptr;
   this->default_command_timeout_in_ms = default_timeout_in_ms;
   this->auto_update_frequency = auto_update_frequency;
+  this->is_gripper_error_state_overwritten = false;
+  this->alternative_gripper_error_state = 0;
   last_received_update = ros::Time(0);
   running = true;
 }
@@ -152,7 +154,7 @@ void GripperCommunication::release(float width, float speed, GripperCallback cal
 void GripperCommunication::move(float width, float speed, bool stop_on_block, GripperCallback callback,
                                 int timeout_in_ms)
 {
-  printf("Move w %f, s %f\n", width, speed);
+  printf("[GripperCommunication::move] w %f, s %f, stop %d\n", width, speed, stop_on_block);
   // auto message_ptr = this->createMoveMessage(width, speed, stop_on_block);
 
   unsigned char payload_length = 9;
@@ -225,17 +227,22 @@ void GripperCommunication::sendCommandSynchronous(Message& message, GripperCallb
 {
   printf("--> send: %d\n", message.id);
   this->gripper_socket->sendMessage(message);
+  this->awaitUpdateForMessage(message.id, callback, 1, timeout_in_ms);
+}
 
+void GripperCommunication::awaitUpdateForMessage(unsigned char messageId, GripperCallback callback, uint32_t amount, int timeout_in_ms) {
   Message received;
   auto start_time = ros::Time::now().toSec();
   bool received_response = false;
+  uint32_t received_amount = 0;
   auto subscription =
-      this->subscribe(message.id, [&](std::shared_ptr<CommandError> error, std::shared_ptr<Message> message) {
+      this->subscribe(messageId, [&](std::shared_ptr<CommandError> error, std::shared_ptr<Message> message) {
         if (callback != nullptr)
         {
           callback(error, message);
         }
-        received_response = true;
+        received_amount++;
+        received_response = received_amount >= amount;
       });
   do
   {
@@ -406,6 +413,9 @@ void GripperCommunication::graspingStateCallback(Message& message)
     {
       this->last_received_update = ros::Time::now();
       this->gripper_state.grasping_state = message.data[2];
+      if (this->is_gripper_error_state_overwritten && this->gripper_state.grasping_state == wsg_50_common::Status::ERROR) {
+        this->gripper_state.grasping_state = this->alternative_gripper_error_state;
+      }
     }
   }
 }
@@ -563,4 +573,10 @@ void GripperCommunication::set_acceleration(float acceleration)
 
   this->sendCommandSynchronous(m);
   this->requestConfiguredAcceleration();
+}
+
+
+void GripperCommunication::setOverrideForGripperErrorState(bool active, int32_t alternative_state) {
+  this->is_gripper_error_state_overwritten = active;
+  this->alternative_gripper_error_state = alternative_state;
 }

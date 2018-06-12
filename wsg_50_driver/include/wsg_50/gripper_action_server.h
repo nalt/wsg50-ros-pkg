@@ -26,6 +26,7 @@ public:
   ActionStateCode state;
   int return_code;
   int expected_grasping_state;
+  bool ignore_axis_blocked;
 };
 
 class GripperActionServer

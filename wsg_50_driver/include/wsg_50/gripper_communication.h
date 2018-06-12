@@ -155,6 +155,7 @@ public:
 
   void sendCommand(Message& message, GripperCallback callback = nullptr, int timeout_in_ms = 0);
   void sendCommandSynchronous(Message& message, GripperCallback callback = nullptr, int timeout_in_ms = 1000);
+  void awaitUpdateForMessage(unsigned char messageId, GripperCallback callback = nullptr, uint32_t amount = 1, int timeout_in_ms = 1000);
   CommandSubscription subscribe(unsigned char messageId, GripperCallback callback);
   void unregisterListener(unsigned char messageId, int listenerId);
   bool acceptsCommands(std::string& reason);
@@ -178,6 +179,9 @@ public:
   void disconnectFromGripper(bool announceDisconnect);
   void valueUpdateCallback(std::shared_ptr<CommandError> error, std::shared_ptr<Message> message);
   void shutdown();
+  // in the special case that pre-postition (move) is used to pick parts with an unkown width, it is needed that the gripper
+  // does not report error states, otherwise our monitoring system might pick the error state up which might interfere with the program execution
+  void setOverrideForGripperErrorState(bool active, int32_t alternative_state = wsg_50_common::Status::IDLE);
 
   GripperState getState();
 
@@ -212,6 +216,8 @@ private:
   std::vector<CommandSubscription> subscriptions;
   GripperState gripper_state;
   bool running;
+  bool is_gripper_error_state_overwritten;
+  int32_t alternative_gripper_error_state;
   int auto_update_frequency;
   int default_command_timeout_in_ms;
   ros::Time last_received_update;
