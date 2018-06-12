@@ -11,7 +11,9 @@ GripperStandardActionServer::GripperStandardActionServer(ros::NodeHandle& node_h
   this->action_state.state = ActionStateCode::NO_GOAL;
   this->action_state.return_code = -1;
   this->action_state.expected_grasping_state = NO_EXPECTATION;
+  this->action_state.ignore_axis_blocked = true;
   this->stop_on_block = false;
+  this->last_command_state = LastCommandState::UNKNOWN;
 
   grasping_state_subscription =
       this->gripper_com.subscribe((unsigned char)WellKnownMessageId::GRIPPING_STATE,
@@ -48,6 +50,7 @@ void GripperStandardActionServer::abort(std::string message_text)
     result = this->fillStatus();
     this->current_goal_handle.setAborted(result, message_text);
     this->action_state.state = ActionStateCode::NO_GOAL;
+    this->gripper_com.setOverrideForGripperErrorState(false);
   }
 }
 
@@ -58,16 +61,35 @@ void GripperStandardActionServer::doWork()
     control_msgs::GripperCommandResult result;
     if (this->action_state.return_code == E_SUCCESS)
     {
+      this->last_command_state = LastCommandState::SUCCESSFUL;
       result = this->fillStatus();
       result.reached_goal = true;
       this->current_goal_handle.setSucceeded(result, "Goal reached");
     }
     else
     {
-      result = this->fillStatus();
-      this->current_goal_handle.setAborted(result, "Goal aborted, command did not return success code");
+      this->last_command_state = LastCommandState::FAILED;
+      if (this->action_state.ignore_axis_blocked && this->action_state.return_code == E_AXIS_BLOCKED) {
+        // special case in that pre-positioning (move) is used as workaround to pickup parts with an unknown width
+        // the gripper goes into an error state even when stop_on_block is false, therefore we acknowledge the error an wait until the reported values are nominal again
+        printf("[GripperStandardActionServer::doWork] received E_AXIS_BLOCKED, but stop_on_block was false -> will acknowledge gripper error\n");
+        try {
+          this->gripper_com.acknowledge_error();
+          // it takes a while for the gripper to report the correct force, therefore we wait until we received three updates of the force values
+          this->gripper_com.awaitUpdateForMessage((unsigned char)WellKnownMessageId::FORCE_VALUES, nullptr, 3);
+          this->gripper_com.awaitUpdateForMessage((unsigned char)WellKnownMessageId::GRIPPING_STATE);
+          result = this->fillStatus();
+          this->current_goal_handle.setSucceeded(result, "Goal reached");
+        } catch (...) {
+          this->current_goal_handle.setAborted(result, "Goal aborted, gripper may have reached its goal, but confirmation requests have timed out.");
+        }
+      } else {
+        result = this->fillStatus();
+        this->current_goal_handle.setAborted(result, "Goal aborted, command did not return success code");
+      }
     }
 
+    this->gripper_com.setOverrideForGripperErrorState(false);
     this->action_state.state = ActionStateCode::NO_GOAL;
     this->action_state.expected_grasping_state = NO_EXPECTATION;
     this->action_state.return_code = -1;
@@ -132,12 +154,12 @@ void GripperStandardActionServer::handleCommand(control_msgs::GripperCommand com
   this->command_position = command.position;
   this->command_max_effort = command.max_effort;
 
+  this->gripper_com.setOverrideForGripperErrorState(true);
   try
   {
     this->gripper_com.move(command.position, this->speed, this->stop_on_block,
                             [&](std::shared_ptr<CommandError> error, std::shared_ptr<Message> message) {
      this->commandCallback(error, message);
-     this->gripper_com.acknowledge_error();
      });
   }
   catch (std::runtime_error& ex)
@@ -201,10 +223,13 @@ control_msgs::GripperCommandResult GripperStandardActionServer::fillStatus()
 
   //check if gripper stalled
   double speed_tolerance = 1; // mm/s
-  if (gripperState.current_force >= this->command_max_effort && gripperState.current_speed < speed_tolerance)
+  if ((this->last_command_state == LastCommandState::FAILED) ||
+    (gripperState.current_force >= this->command_max_effort && gripperState.current_speed < speed_tolerance))
+  {
     status.stalled = true;
-  else
+  } else {
     status.stalled = false;
+  }
 
   return status;
 }

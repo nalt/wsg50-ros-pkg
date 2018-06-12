@@ -13,21 +13,12 @@
 typedef actionlib::ActionServer<control_msgs::GripperCommandAction> StandardActionServer;
 typedef StandardActionServer::GoalHandle GoalHandleStandard;
 
-//enum class ActionStateCode : uint32_t
-//{
-//  NO_GOAL = 0,
-//  AWAIT_COMMAND = 1,
-//  AWAIT_STATUS_UPDATE = 2,
-//  DONE = 3
-//};
-
-//class ActionState
-//{
-//public:
-//  ActionStateCode state;
-//  int return_code;
-//  int expected_grasping_state;
-//};
+enum class LastCommandState : uint32_t
+{
+  UNKNOWN = 0,
+  SUCCESSFUL = 1,
+  FAILED = 2
+};
 
 class GripperStandardActionServer
 {
@@ -53,6 +44,7 @@ private:
   bool stop_on_block;
   double command_max_effort;
   double command_position;
+  LastCommandState last_command_state;
 
   void goalCallback(GoalHandleStandard goal_handle);
   void cancelCallback(GoalHandleStandard goal_handle);
