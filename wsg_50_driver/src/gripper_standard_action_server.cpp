@@ -223,9 +223,10 @@ control_msgs::GripperCommandResult GripperStandardActionServer::fillStatus()
 
   //check if gripper stalled
   double speed_tolerance = 1; // mm/s
-  if ((this->last_command_state == LastCommandState::FAILED) ||
-    (gripperState.current_force >= this->command_max_effort && gripperState.current_speed < speed_tolerance))
-  {
+  if (
+    (this->last_command_state == LastCommandState::FAILED)
+    // || (gripperState.current_force >= this->command_max_effort && gripperState.current_speed < speed_tolerance)
+  ) {
     status.stalled = true;
   } else {
     status.stalled = false;
