@@ -590,7 +590,7 @@ void loop_cb(const ros::TimerEvent& ev)
     status_message.current_speed = gripperState.current_speed / 1000;
     status_message.connection_state = (uint32_t)gripperState.connection_state;
     status_message.grasping_force = gripperState.configured_force;
-    status_message.acceleration = gripperState.configured_acceleration;
+    status_message.acceleration = gripperState.configured_acceleration / 1000;
     g_pub_state.publish(status_message);
 
     g_pub_heartbeat.publish(heartbeat_msg);
