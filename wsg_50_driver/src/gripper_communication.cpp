@@ -123,6 +123,9 @@ void GripperCommunication::disconnectFromGripper(bool announceDisconnect)
   msg_close();
 }
 
+// @brief Grasps with the gripper
+// @param width in mm
+// @param speed in mm/s
 void GripperCommunication::grasp(float width, float speed, GripperCallback callback, int timeout_in_ms)
 {
   unsigned char payload_length = 8;
@@ -137,6 +140,9 @@ void GripperCommunication::grasp(float width, float speed, GripperCallback callb
   this->sendCommand(message, callback, timeout_in_ms);
 }
 
+// @brief Releases the gripper
+// @param width in mm
+// @param speed in mm/s
 void GripperCommunication::release(float width, float speed, GripperCallback callback, int timeout_in_ms)
 {
   unsigned char payload_length = 8;
@@ -151,6 +157,9 @@ void GripperCommunication::release(float width, float speed, GripperCallback cal
   this->sendCommand(message, callback, timeout_in_ms);
 }
 
+// @brief Prepositioning the gripper
+// @param width in mm
+// @param speed in mm/s
 void GripperCommunication::move(float width, float speed, bool stop_on_block, GripperCallback callback,
                                 int timeout_in_ms)
 {
@@ -553,6 +562,8 @@ void GripperCommunication::fast_stop()
   this->sendCommandSynchronous(m);
 }
 
+// @brief Sets the force
+// @param force in N
 void GripperCommunication::set_force(float force, GripperCallback callback, int timeout_in_ms)
 {
   unsigned char payload[4];
@@ -564,6 +575,8 @@ void GripperCommunication::set_force(float force, GripperCallback callback, int 
   this->requestConfiguredGraspingForce();
 }
 
+// @brief Sets the acceleration
+// @param acceleration in mm/s²
 void GripperCommunication::set_acceleration(float acceleration)
 {
   unsigned char payload[4];

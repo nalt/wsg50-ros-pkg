@@ -160,6 +160,7 @@ void GripperActionServer::goalCallback(GoalHandle goal_handle)
 void GripperActionServer::handleCommand(wsg_50_common::Command command, GoalHandle& goal_handle)
 {
   printf("handle command\n");
+  // Receiving width and speed in m and m/s
   command.width = command.width * 1000;
   command.speed = command.speed * 1000;
 

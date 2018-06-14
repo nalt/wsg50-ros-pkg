@@ -178,7 +178,8 @@ bool setAccSrv(wsg_50_common::SetValue::Request& req, wsg_50_common::SetValue::R
 {
   try
   {
-    gripperCom->set_acceleration(req.val);
+    // setAccSrc receives acceleration in m/s²
+    gripperCom->set_acceleration(req.val * 1000);
     res.error = 0;
   }
   catch (std::runtime_error& ex)
@@ -218,7 +219,7 @@ bool getGripperStatusService(wsg_50_common::GetGripperStatus::Request& req,
   status.current_speed = gripperState.current_speed / 1000;
   status.connection_state = (uint32_t)gripperState.connection_state;
   status.grasping_force = gripperState.configured_force;
-  status.acceleration = gripperState.configured_acceleration;
+  status.acceleration = gripperState.configured_acceleration / 1000;
   res.status = status;
   return true;
 }
