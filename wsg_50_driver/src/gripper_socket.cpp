@@ -163,7 +163,7 @@ std::shared_ptr<Message> GripperSocket::getMessage()
     throw ChecksumError("ChecksumError");
   }
 
-  return std::make_shared<Message>(new Message(messageId, messageLength, messageData));
+  return std::make_shared<Message>(Message(messageId, messageLength, messageData));
 }
 
 void GripperSocket::readLoop()
