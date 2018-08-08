@@ -55,6 +55,7 @@ public:
   int32_t grasping_state;
   int32_t system_state;
   ConnectionState connection_state;
+  bool initialized;
 
   GripperState()
   {
@@ -66,6 +67,7 @@ public:
     this->grasping_state = -1;
     this->system_state = -1;
     this->connection_state = ConnectionState::NOT_CONNECTED;
+    this->initialized = false;
   }
 
   std::string getGraspStateText()
@@ -159,7 +161,7 @@ public:
   CommandSubscription subscribe(unsigned char messageId, GripperCallback callback);
   void unregisterListener(unsigned char messageId, int listenerId);
   bool acceptsCommands(std::string& reason);
-  void processMessages(int max_number_of_messages = 100);
+  void doWork();
 
   // long running, asynchronous gripper commands
   void move(float width, float speed, bool stop_on_block, GripperCallback callback = nullptr, int timeout_in_ms = 0);
@@ -203,6 +205,10 @@ private:
   void activateAutoUpdates(const unsigned char messageId, const int interval_ms);
   void callbackListeners(const unsigned char messageId, Message& message);
   void updateCommandState(const unsigned char messageId, const CommandStateCode state);
+  void clearSubscriptions();
+  void connectionStateChangedCallback(ConnectionState& new_connection_state);
+  void initializeSubscriptions();
+  void processMessages(int max_number_of_messages = 100);
 
   void graspingStateCallback(Message& message);
   void widthCallback(Message& message);

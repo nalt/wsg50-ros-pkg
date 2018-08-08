@@ -535,7 +535,7 @@ void loop_cb(const ros::TimerEvent& ev)
 {
   try
   {
-    gripperCom->processMessages();
+    gripperCom->doWork();
   }
   catch (std::runtime_error& ex)
   {

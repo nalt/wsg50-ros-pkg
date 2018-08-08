@@ -314,7 +314,12 @@ void GripperSocket::disconnectSocket()
   {
     ROS_INFO("Closing socket.");
     close(this->socket_fd);
+    auto state_changed = this->connection_state != ConnectionState::NOT_CONNECTED;
     this->connection_state = ConnectionState::NOT_CONNECTED;
     this->socket_fd = -1;
+    if ((state_changed == true) && (this->connection_state_change_callback != nullptr))
+    {
+      this->connection_state_change_callback(this->connection_state);
+    }
   }
 }

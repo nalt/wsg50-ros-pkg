@@ -148,7 +148,7 @@ void GripperStandardActionServer::goalCallback(GoalHandleStandard goal_handle)
 
 void GripperStandardActionServer::handleCommand(control_msgs::GripperCommand command, GoalHandleStandard& goal_handle)
 {
-  printf("handle command\n");
+  ROS_INFO("Handle command position: %f, effort: %f", command.position, command.max_effort);
 
   command.position = command.position * 1000;
   this->command_position = command.position;
