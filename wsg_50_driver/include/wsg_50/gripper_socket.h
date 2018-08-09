@@ -19,6 +19,7 @@
 #include <unistd.h>
 #include <fcntl.h>
 #include <errno.h>
+#include <atomic>
 
 #include "wsg_50/ring_buffer.h"
 
@@ -103,6 +104,10 @@ private:
   std::thread read_loop;
   int socket_fd;
   ConnectionStateCallback connection_state_change_callback;
+  std::atomic<bool> reconnect_requested;
+
+  std::mutex write_buffer_gate;
+  std::mutex read_buffer_gate;
 };
 
 class SocketCreationError : public std::runtime_error

@@ -117,6 +117,12 @@ public:
     }
   }
 
+  void clear()
+  {
+    this->buffer_pointer = 0;
+    this->buffer_content_length = 0;
+  }
+
   unsigned int getLength()
   {
     return this->buffer_content_length;

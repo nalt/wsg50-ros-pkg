@@ -306,7 +306,7 @@ void GripperCommunication::connectionStateChangedCallback(ConnectionState& new_c
 
 void GripperCommunication::initializeSubscriptions()
 {
-  if (this->gripper_socket->getConnectionState() == ConnectionState::CONNECTED)
+  if (this->gripper_state.connection_state == ConnectionState::CONNECTED)
   {
     this->last_received_update = ros::Time::now();
     try
@@ -315,6 +315,7 @@ void GripperCommunication::initializeSubscriptions()
       this->requestConfiguredAcceleration();
       this->requestConfiguredGraspingForce();
       this->gripper_state.initialized = true;
+      ROS_INFO("Gripper initialized successfully.");
     }
     catch (std::runtime_error& ex)
     {
@@ -335,13 +336,7 @@ void GripperCommunication::doWork()
     {
       this->initializeSubscriptions();
     }
-  }
-}
 
-void GripperCommunication::processMessages(int max_number_of_messages)
-{
-  if (this->gripper_state.connection_state == ConnectionState::CONNECTED)
-  {
     double time_diff = (ros::Time::now().toSec() - this->last_received_update.toSec()) * 1000;
     if (time_diff > this->auto_update_frequency * GripperCommunication::TIMEOUT_DELAY)
     {
@@ -350,7 +345,10 @@ void GripperCommunication::processMessages(int max_number_of_messages)
       this->gripper_socket->reconnect();
     }
   }
+}
 
+void GripperCommunication::processMessages(int max_number_of_messages)
+{
   int processed_messages = 0;
   std::shared_ptr<Message> message = this->gripper_socket->getMessage();
 

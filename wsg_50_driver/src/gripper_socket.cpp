@@ -22,6 +22,7 @@ GripperSocket::GripperSocket(std::string host, int port)
   this->previous_connection_state = this->connection_state;
   this->socket_fd = -1;
   this->connection_state_change_callback = nullptr;
+  this->reconnect_requested = false;
 
   this->startReadLoop();
 }
@@ -84,22 +85,26 @@ void GripperSocket::connectSocket()
         getsockopt(fd, SOL_SOCKET, SO_ERROR, (void*)(&valopt), &lon);
         if (valopt)
         {
+          close(fd);
           throw ConnectionOpenError("Could not open connection to " + this->host + ":" + std::to_string(this->port));
         }
       }
       else
       {
+        close(fd);
         throw ConnectionOpenError("Could not open connection to " + this->host + ":" + std::to_string(this->port));
       }
     }
     else
     {
+      close(fd);
       throw ConnectionOpenError("Could not open connection to " + this->host + ":" + std::to_string(this->port));
     }
   }
 
   this->connection_state = ConnectionState::CONNECTED;
   this->socket_fd = fd;
+  ROS_INFO("Connected to gripper at %s:%d using fd %d", this->host.c_str(), this->port, this->socket_fd);
 }
 
 void GripperSocket::disconnect()
@@ -118,6 +123,7 @@ ConnectionState GripperSocket::getConnectionState()
 
 std::shared_ptr<Message> GripperSocket::getMessage()
 {
+  std::lock_guard<std::mutex> lock(this->read_buffer_gate);
   if (this->readBuffer.getLength() < MSG_HEADER_SIZE + MSG_PREAMBLE_SIZE)
   {
     return nullptr;
@@ -170,33 +176,48 @@ void GripperSocket::readLoop()
 {
   while (this->running == true)
   {
-    if (this->connection_state == ConnectionState::CONNECTED)
+    if (this->reconnect_requested == true)
+    {
+      this->reconnect_requested = false;
+      this->disconnectSocket();
+      {
+        std::lock_guard<std::mutex> lock(this->write_buffer_gate);
+        this->writeBuffer.clear();
+      }
+    }
+
+    if ((this->connection_state == ConnectionState::CONNECTED) && (this->socket_fd >= 0))
     {
       if (this->previous_connection_state != this->connection_state)
       {
+        this->previous_connection_state = this->connection_state;
         ROS_INFO("Changed connection state from NOT_CONNECTED to CONNECTED");
         if (this->connection_state_change_callback != nullptr)
         {
           this->connection_state_change_callback(this->connection_state);
         }
       }
-      this->previous_connection_state = this->connection_state;
 
-      if (this->socket_fd > 0)
+      if (this->socket_fd >= 0)
       {
         int read_bytes = recv(this->socket_fd, this->receive_buffer, GripperSocket::BUFFER_SIZE, 0);
         if (read_bytes <= 0)
         {
           if ((read_bytes == 0) || ((errno != EWOULDBLOCK) && (errno != EAGAIN)))
           {
+            ROS_ERROR("Error reading data from socket. Try restarting the gripper.");
             this->disconnectSocket();
-            this->connection_state = ConnectionState::NOT_CONNECTED;
+            {
+              std::lock_guard<std::mutex> lock(this->write_buffer_gate);
+              this->writeBuffer.clear();
+            }
           }
         }
         else
         {
           try
           {
+            std::lock_guard<std::mutex> lock(this->read_buffer_gate);
             this->readBuffer.write(read_bytes, this->receive_buffer);
           }
           catch (NotEnoughSpaceInBuffer& ex)
@@ -210,8 +231,9 @@ void GripperSocket::readLoop()
         }
       }
 
-      if (this->socket_fd > 0)
+      if (this->socket_fd >= 0)
       {
+        std::lock_guard<std::mutex> lock(this->write_buffer_gate);
         if (this->writeBuffer.getLength() > 0)
         {
           unsigned int a = GripperSocket::BUFFER_SIZE;
@@ -221,22 +243,22 @@ void GripperSocket::readLoop()
           if (result < length)
           {
             this->disconnectSocket();
-            this->connection_state = ConnectionState::NOT_CONNECTED;
+            this->writeBuffer.clear();
           }
         }
       }
     }
-    else if (this->connection_state == ConnectionState::NOT_CONNECTED)
+    else if ((this->connection_state == ConnectionState::NOT_CONNECTED) && (this->socket_fd < 0))
     {
       if (this->previous_connection_state != this->connection_state)
       {
+        this->previous_connection_state = this->connection_state;
         ROS_INFO("Changed connection state from CONNECTED to NOT_CONNECTED");
         if (this->connection_state_change_callback != nullptr)
         {
           this->connection_state_change_callback(this->connection_state);
         }
       }
-      this->previous_connection_state = this->connection_state;
 
       try
       {
@@ -248,6 +270,11 @@ void GripperSocket::readLoop()
         std::chrono::milliseconds timespan(200);
         std::this_thread::sleep_for(timespan);
       }
+    }
+    else
+    {
+      ROS_WARN("Invalid connection state -> disconnecting.");
+      this->reconnect();
     }
 
     std::chrono::milliseconds timespan(10);
@@ -263,12 +290,12 @@ void GripperSocket::setConnectionStateChangedCallback(ConnectionStateCallback ca
 void GripperSocket::reconnect()
 {
   ROS_INFO("Reconnect requested.");
-  this->disconnectSocket();
+  this->reconnect_requested = true;
 }
 
 void GripperSocket::sendMessage(Message& message)
 {
-  if (this->socket_fd <= 0)
+  if (this->socket_fd < 0)
   {
     throw SocketNotOpen("");
   }
@@ -296,23 +323,26 @@ void GripperSocket::sendMessage(Message& message)
   unsigned char buf[raw_message_size];
   memcpy(buf, raw_message, 6);
   memcpy(buf + 6, messageData, message.length);
-
   memcpy(buf + 6 + message.length, (unsigned char*)&crc, 2);
 
+  std::lock_guard<std::mutex> lock(this->write_buffer_gate);
   this->writeBuffer.write(raw_message_size, buf);
 }
 
 void GripperSocket::startReadLoop()
 {
-  this->running = true;
-  this->read_loop = std::thread(&GripperSocket::readLoop, this);
+  if (this->running == false)
+  {
+    this->running = true;
+    this->read_loop = std::thread(&GripperSocket::readLoop, this);
+  }
 }
 
 void GripperSocket::disconnectSocket()
 {
-  if (this->socket_fd > 0)
+  if (this->socket_fd >= 0)
   {
-    ROS_INFO("Closing socket.");
+    ROS_INFO("Closing socket fd %d", this->socket_fd);
     close(this->socket_fd);
     auto state_changed = this->connection_state != ConnectionState::NOT_CONNECTED;
     this->connection_state = ConnectionState::NOT_CONNECTED;
