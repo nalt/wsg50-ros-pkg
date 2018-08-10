@@ -149,8 +149,7 @@ enum class CommandStateCode : unsigned char
 class GripperCommunication final
 {
 public:
-  static constexpr float TIMEOUT_DELAY = 2.5;
-  GripperCommunication(std::string host, int port, int auto_update_frequency = 50, int default_timeout_in_ms = 10000);
+  GripperCommunication(std::string host, int port, int auto_update_interval_ms = 50, int command_timeout_ms = 10000, int reconnect_timeout_ms = 150);
   ~GripperCommunication()
   {
   }
@@ -224,8 +223,9 @@ private:
   bool running;
   bool is_gripper_error_state_overwritten;
   int32_t alternative_gripper_error_state;
-  int auto_update_frequency;
-  int default_command_timeout_in_ms;
+  int auto_update_interval_ms;
+  int command_timeout_ms;
+  int reconnect_timeout_ms;
   ros::Time last_received_update;
 };
 

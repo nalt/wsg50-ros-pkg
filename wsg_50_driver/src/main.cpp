@@ -685,15 +685,19 @@ int main(int argc, char** argv)
   std::string com_mode;
   int local_port;
   double rate, grasping_force;
+  int reconnect_timeout_ms, auto_update_interval_ms, command_timeout_ms;
 
   nh.param("ip", ip, std::string("192.168.1.20"));
   nh.param("port", port, 1000);
   nh.param("com_mode", com_mode, std::string(""));
   nh.param("rate", rate, 1.0);  // With custom script, up to 30Hz are possible
   nh.param("grasping_force", grasping_force, 0.0);
+  nh.param("reconnect_timeout_ms", reconnect_timeout_ms, 150);
+  nh.param("auto_update_interval_ms", auto_update_interval_ms, 50);
+  nh.param("command_timeout_ms", command_timeout_ms, 10000);
   nh.param("prefix", prefix, std::string(""));
 
-  gripperCom = new GripperCommunication(ip, port);
+  gripperCom = new GripperCommunication(ip, port, auto_update_interval_ms, command_timeout_ms, reconnect_timeout_ms);
 
   ROS_INFO("Connecting to %s:%d (%s); communication mode: %s ...", ip.c_str(), port, protocol.c_str(),
            com_mode.c_str());

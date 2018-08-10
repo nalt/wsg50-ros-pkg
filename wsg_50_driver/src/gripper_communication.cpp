@@ -1,8 +1,8 @@
 #include "wsg_50/gripper_communication.h"
 #include "wsg_50/functions.h"
 
-GripperCommunication::GripperCommunication(std::string host, int port, int auto_update_frequency,
-                                           int default_timeout_in_ms)
+GripperCommunication::GripperCommunication(std::string host, int port, int auto_update_interval_ms,
+                                          int command_timeout_ms, int reconnect_timeout_ms)
 {
   gripper_socket = new GripperSocket(host, port);
   gripper_socket->setConnectionStateChangedCallback(
@@ -12,9 +12,11 @@ GripperCommunication::GripperCommunication(std::string host, int port, int auto_
     }
   );
 
+  ROS_INFO("Starting with update interval: %d ms, reconnection delay: %d ms", auto_update_interval_ms, reconnect_timeout_ms);
   this->currentCommand = nullptr;
-  this->default_command_timeout_in_ms = default_timeout_in_ms;
-  this->auto_update_frequency = auto_update_frequency;
+  this->command_timeout_ms = command_timeout_ms;
+  this->auto_update_interval_ms = auto_update_interval_ms;
+  this->reconnect_timeout_ms = reconnect_timeout_ms;
   this->is_gripper_error_state_overwritten = false;
   this->alternative_gripper_error_state = 0;
   last_received_update = ros::Time(0);
@@ -44,9 +46,9 @@ bool GripperCommunication::acceptsCommands(std::string& reason)
 
 void GripperCommunication::activateAutomaticValueUpdates()
 {
-  int interval_ms = this->auto_update_frequency;
-
+  int interval_ms = this->auto_update_interval_ms;
   this->clearSubscriptions();
+  std::chrono::milliseconds timespan(10);
 
   ROS_INFO("Request updates for grip state");
   auto subscription = this->subscribe((unsigned char)WellKnownMessageId::GRIPPING_STATE,
@@ -58,6 +60,7 @@ void GripperCommunication::activateAutomaticValueUpdates()
                                      });
   this->activateAutoUpdates((unsigned char)WellKnownMessageId::GRIPPING_STATE, interval_ms);
   this->subscriptions.push_back(subscription);
+  std::this_thread::sleep_for(timespan);
 
   ROS_INFO("Request updates for opening values");
   subscription = this->subscribe((unsigned char)WellKnownMessageId::OPENING_VALUES,
@@ -69,6 +72,7 @@ void GripperCommunication::activateAutomaticValueUpdates()
                   });
   this->activateAutoUpdates((unsigned char)WellKnownMessageId::OPENING_VALUES, interval_ms + 2);
   this->subscriptions.push_back(subscription);
+  std::this_thread::sleep_for(timespan);
 
   ROS_INFO("Request updates for force values");
   subscription = this->subscribe((unsigned char)WellKnownMessageId::FORCE_VALUES,
@@ -80,6 +84,7 @@ void GripperCommunication::activateAutomaticValueUpdates()
                   });
   this->activateAutoUpdates((unsigned char)WellKnownMessageId::FORCE_VALUES, interval_ms + 4);
   this->subscriptions.push_back(subscription);
+  std::this_thread::sleep_for(timespan);
 
   ROS_INFO("Request updates for speed values");
   subscription = this->subscribe((unsigned char)WellKnownMessageId::SPEED_VALUES,
@@ -232,7 +237,7 @@ void GripperCommunication::sendCommand(Message& message, GripperCallback callbac
     throw MessageQueueFull();
   }
 
-  auto timeout = timeout_in_ms > 0 ? timeout_in_ms : this->default_command_timeout_in_ms;
+  auto timeout = timeout_in_ms > 0 ? timeout_in_ms : this->command_timeout_ms;
   this->currentCommand = std::make_shared<CommandState>(CommandState(message, callback, timeout));
   this->updateCommandState(message.id, CommandStateCode::PENDING);
   this->gripper_socket->sendMessage(message);
@@ -338,7 +343,7 @@ void GripperCommunication::doWork()
     }
 
     double time_diff = (ros::Time::now().toSec() - this->last_received_update.toSec()) * 1000;
-    if (time_diff > this->auto_update_frequency * GripperCommunication::TIMEOUT_DELAY)
+    if (time_diff > this->reconnect_timeout_ms)
     {
       ROS_WARN("Did not receive any updates from gripper within %f ms. Initiate reconnect.", time_diff);
       this->last_received_update = ros::Time::now();
