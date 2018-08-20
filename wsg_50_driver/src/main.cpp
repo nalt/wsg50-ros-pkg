@@ -59,8 +59,6 @@
 #include "sensor_msgs/JointState.h"
 #include "std_msgs/Float32.h"
 #include "std_msgs/Bool.h"
-#include <xamla_sysmon_msgs/statuscodes.h>
-#include <xamla_sysmon_msgs/HeartBeat.h>
 //------------------------------------------------------------------------
 // Local macros
 //------------------------------------------------------------------------
@@ -80,7 +78,7 @@ float increment;
 bool objectGraspped;
 
 int g_timer_cnt = 0;
-ros::Publisher g_pub_state, g_pub_joint, g_pub_moving, g_pub_heartbeat;
+ros::Publisher g_pub_state, g_pub_joint, g_pub_moving;
 float g_goal_position = NAN, g_goal_speed = NAN, g_speed = 10.0;
 wsg_50_common::Status status_message;
 NodeState node_state;
@@ -542,8 +540,6 @@ void loop_cb(const ros::TimerEvent& ev)
     ROS_ERROR("An error occured while trying to receive messages: %s", ex.what());
   }
 
-  xamla_sysmon_msgs::HeartBeat heartbeat_msg;
-
   auto gripperState = gripperCom->getState();
 
   switch (node_state.get())
@@ -552,29 +548,6 @@ void loop_cb(const ros::TimerEvent& ev)
     {
       action_server->doWork();
       action_standard_server->doWork();
-
-      heartbeat_msg.header.stamp = ros::Time::now();
-      if ((gripperState.grasping_state == wsg_50_common::Status::UNKNOWN) ||
-          (gripperState.grasping_state == wsg_50_common::Status::ERROR) ||
-          (gripperState.connection_state != ConnectionState::CONNECTED))
-      {
-        heartbeat_msg.status = static_cast<int>(TopicHeartbeatStatus::TopicCode::INTERNAL_ERROR);
-        heartbeat_msg.details = "Gripper is in unknown or error state.";
-      }
-      else
-      {
-        heartbeat_msg.status = static_cast<int>(TopicHeartbeatStatus::TopicCode::GO);
-        heartbeat_msg.details = "";
-      }
-
-      break;
-    }
-    default:
-    {
-      ROS_ERROR("Something went very wrong. This can only be recoverd by restarting the node");
-      heartbeat_msg.status = static_cast<int>(TopicHeartbeatStatus::TopicCode::INTERNAL_ERROR);
-      heartbeat_msg.details = "Drive is in error state.";
-      break;
     }
   }
 
@@ -592,8 +565,6 @@ void loop_cb(const ros::TimerEvent& ev)
     status_message.grasping_force = gripperState.configured_force;
     status_message.acceleration = gripperState.configured_acceleration / 1000;
     g_pub_state.publish(status_message);
-
-    g_pub_heartbeat.publish(heartbeat_msg);
 
     joint_states.header.stamp = ros::Time::now();
     joint_states.position[0] = gripperState.width / 2000.0;
@@ -726,15 +697,7 @@ int main(int argc, char** argv)
     // Open publishers
     g_pub_state = nh.advertise<wsg_50_common::Status>(controller_name + "/status", 1000);
     g_pub_joint = nh.advertise<sensor_msgs::JointState>("/joint_states", 10);
-    g_pub_heartbeat = nh.advertise<xamla_sysmon_msgs::HeartBeat>(controller_name + "/heartbeat", 1);
-
-    xamla_sysmon_msgs::HeartBeat msg;
-    msg.header.stamp = ros::Time::now();
-
-    msg.status = static_cast<int>(TopicHeartbeatStatus::TopicCode::STARTING);
-    msg.details = TopicHeartbeatStatus::generateMessageText(TopicHeartbeatStatus::intToStatusCode(msg.status));
-    g_pub_heartbeat.publish(msg);
-
+    
     // Services
     ros::ServiceServer setAccSS, setForceSS, stopSS, ackSS, getStatusSS, fastStopSS;
     setAccSS = nh.advertiseService(controller_name + "/set_acceleration", setAccSrv);
