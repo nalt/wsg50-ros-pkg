@@ -74,6 +74,11 @@ install(TARGETS
   wsg_50_ip
   DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
 )
+install(FILES
+  launch/grippercontroller.yaml
+  launch/wsg_50_tcp.launch
+  DESTINATION ${CATKIN_PACKAGE_SHARE_DESTINATION}
+)
 
 
 #add_executable(wsg_50_can src/main_can.cpp src/checksum.cpp src/msg.c src/common.cpp src/functions_can.cpp)
