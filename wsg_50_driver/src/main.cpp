@@ -567,12 +567,12 @@ void loop_cb(const ros::TimerEvent& ev)
     g_pub_state.publish(status_message);
 
     joint_states.header.stamp = ros::Time::now();
-    joint_states.position[0] = gripperState.width / 2000.0;
-    //joint_states.position[1] = gripperState.width / 2000.0;
-    joint_states.velocity[0] = gripperState.current_speed / 1000.0;
-    //joint_states.velocity[1] = gripperState.current_speed / 1000.0;
-    joint_states.effort[0] = gripperState.current_force;
-    //joint_states.effort[1] = gripperState.current_force;
+    joint_states.position[0] = -gripperState.width / 2000.0;
+    joint_states.position[1] = gripperState.width / 2000.0;
+    joint_states.velocity[0] = -gripperState.current_speed / 1000.0;
+    joint_states.velocity[1] = gripperState.current_speed / 1000.0;
+    joint_states.effort[0] = -gripperState.current_force;
+    joint_states.effort[1] = gripperState.current_force;
     g_pub_joint.publish(joint_states);
 
     last_publish = ros::Time::now();
@@ -689,10 +689,10 @@ int main(int argc, char** argv)
     std::string action_ns = result[1];
     joint_states.header.frame_id = prefix + "_base_link";
     joint_states.name.push_back(result[3]);
-    //joint_states.name.push_back(result[4]);
-    joint_states.position.resize(1);
-    joint_states.velocity.resize(1);
-    joint_states.effort.resize(1);
+    joint_states.name.push_back(result[4]);
+    joint_states.position.resize(2);
+    joint_states.velocity.resize(2);
+    joint_states.effort.resize(2);
 
     // Open publishers
     g_pub_state = nh.advertise<wsg_50_common::Status>(controller_name + "/status", 1000);
