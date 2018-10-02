@@ -4,8 +4,12 @@
 	<node name="wsg50_driver"  pkg="wsg_50_driver" type="wsg_50_ip" output="screen" >
 		<param name="ip" type="string" value="192.170.10.20"/>
 		<param name="port" type="int" value="1500"/>
+        <param name="reconnect_timeout_ms" type="int" value="250"/>
 		<rosparam command="load" file="$(find wsg_50_driver)/grippercontroller.yaml" />
 	</node>
+
+    <node name="wsg50_ack_error"  pkg="wsg_50_driver" type="wsg50_acknowledge_gripper_error_node.py" output="screen" >
+    </node>
 
 </launch>
 
