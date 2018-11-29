@@ -1,4 +1,5 @@
 string status
+time stamp
 float32 width
 float32 speed
 float32 acc

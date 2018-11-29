@@ -6,16 +6,16 @@
  *  @section functions.c_general General file information
  *
  *  @brief
- *  
+ *
  *
  *  @author Marc
  *  @date   06.06.2012
- *  
- *  
+ *
+ *
  *  @section functions.c_copyright Copyright
- *  
+ *
  *  Copyright 2012 Robotnik Automation, SLL
- *  
+ *
  *  Redistribution and use in source and binary forms, with or without
  *  modification, are permitted provided that the following conditions are met:
  *
@@ -24,7 +24,7 @@
  *     * Redistributions in binary form must reproduce the above copyright
  *       notice, this list of conditions and the following disclaimer in the
  *       documentation and/or other materials provided with the distribution.
- *     * Neither the name of the and Weiss Robotics GmbH nor the names of its 
+ *     * Neither the name of the and Weiss Robotics GmbH nor the names of its
  *       contributors may be used to endorse or promote products derived from
  *	 this software without specific prior written permission.
  *
@@ -362,7 +362,7 @@ int script_measure_move (unsigned char cmd_type, float cmd_width, float cmd_spee
 			throw std::string("Command failed");
 		if (res != 23)
 			throw std::string("Response payload incorrect (" + std::to_string(res) + ")");
-
+    printf("Extracting data\n");
 		// Extract data from response
 		int off=2;
 		unsigned char resp_state[6] = {0,0,0,0,0,0};
@@ -505,7 +505,7 @@ int doTare( void )
 ///////////////////
 
 
-const char * systemState( void ) 
+const char * systemState( void )
 {
 	status_t status;
 	int res;
@@ -652,7 +652,7 @@ float getForce(int auto_update){
 }
 
 
-int getAcceleration( void )  
+int getAcceleration( void )
 {
 	status_t status;
 	int res;
@@ -681,12 +681,12 @@ int getAcceleration( void )
 		free( resp );
 		return 0;
 	}
-	
+
 	vResult[0] = resp[2];
 	vResult[1] = resp[3];
 	vResult[2] = resp[4];
 	vResult[3] = resp[5];
-	
+
 	free( resp );
 
 	return convert(vResult);
@@ -694,7 +694,7 @@ int getAcceleration( void )
 	//return (int) resp[2];
 }
 
-int getGraspingForceLimit( void )  
+int getGraspingForceLimit( void )
 {
 	status_t status;
 	int res;
@@ -723,12 +723,12 @@ int getGraspingForceLimit( void )
 		free( resp );
 		return 0;
 	}
-	
+
 	vResult[0] = resp[2];
 	vResult[1] = resp[3];
 	vResult[2] = resp[4];
 	vResult[3] = resp[5];
-	
+
 	free( resp );
 
 	return convert(vResult);

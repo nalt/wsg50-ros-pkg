@@ -1,0 +1,36 @@
+hand0:
+  ip: 192.168.3.20
+  port: 1000
+  local_port: 1501
+  use_tcp: true
+
+  buffer_size_hand_state: 10
+  hand_read_rate: 30
+
+
+  finger0_type: fmf
+  finger0:
+    finger_id: 0
+    finger_read_rate: 30
+    data_buff_max_size: 10
+    calibration_path: /home/herb_admin/planc509_ws/src/wsg50-ros-pkg/wsg_50_driver/config/rounded/finger0_cal.csv
+    calib_samples: 100
+    calib_target: 50
+
+  finger1_type: optical
+  finger1:
+    finger_id: 1
+    devices: 8
+    reg_addrs_str: 62 66 68 74 50 # Registers of interest in hex
+    reg_lengths_str: 1 2 2 4 2  # Register lengths in hex
+    finger_read_rate: 30
+    data_buff_max_size: 30
+    sensor_to_surface_mm: 14.2 #17.7553
+    target_surface_offset_mm: 13.45
+    calibration_path: /home/herb_admin/planc509_ws/src/wsg50-ros-pkg/wsg_50_driver/config/rounded/finger1_cal.csv
+    calib_see_through_samples: 100
+    calib_see_through_target: 110
+    calib_offset_samples: 100
+    calib_offset_target: 14.2 #17.7553
+    calib_cross_talk_samples: 100
+    calib_cross_talk_target: 50
