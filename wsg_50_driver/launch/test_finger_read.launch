@@ -1,0 +1,9 @@
+<!-- -*- mode: XML -*- -->
+<launch>
+  <arg name="hand_config" default="$(find wsg_50_driver)/config/hand0.yaml" />
+  <rosparam file="$(arg hand_config)" command="load" />
+
+  <node pkg="wsg_50_driver" type="test_finger_read" name="test_finger_read" output="screen"/>
+
+</launch>
+
