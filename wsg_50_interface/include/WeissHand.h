@@ -15,7 +15,8 @@
 #include <ros/ros.h>
 #include <ros/console.h>
 
-// TODO: Low-level weiss API.
+// Low-level weiss API.
+#include "wsg_50/hand.h"
 
 // c++
 #include <stdexcept>
@@ -26,7 +27,25 @@ using namespace std;
 
 class WeissHand: public hardware_interface::RobotHW
 {
-  // TODO
+public:
+      WeissHand(ros::NodeHandle nh);
+
+      virtual ~WeissHand();
+
+      ros::Time get_time(void);
+
+      ros::Duration get_period(void);
+
+      void sendPositionCommand(const std::vector<double>& command);
+      void sendVelocityCommand(const std::vector<double>& command);
+      void sendTorqueCommand(const std::vector<double>& command);
+      void sendFingerPositionCommand(const std::vector<double>& command);
+
+      void write(void);
+      void read(void);
+
+private:
+      Hand hand;
 };
 
 #endif
