@@ -39,10 +39,27 @@ WeissHand::WeissHand(ros::NodeHandle nh)
   ROS_INFO("Register Effort Interface...");
   // TODO.
 
+  // connect and register the joint position interface
+  // this takes joint effort in as a command.
+  hardware_interface::JointHandle eff_handle(jnt_state_interface.getHandle("wsg_50_joint_1"), &cmd_eff[0]);
+  jnt_eff_interface.registerHandle(eff_handle);
+  registerInterface(&jnt_eff_interface);
 
+  // connect and register the joint mode interface
+  // this is needed to determine if velocity or position control is needed.
+  hardware_interface::JointModeHandle mode_handle("joint_mode", &joint_mode);
+  jm_interface.registerHandle(mode_handle);
 
+  // TODO: Why are the fingers seperate?
+  pr_hardware_interfaces::PositionCommandHandle position_command_handle(
+        "/wsg_50_joint_1", &movehand_state, &finger_pos);
+  movehand_interface.registerHandle(position_command_handle);
+  registerInterface(&movehand_interface);
 
+  registerInterface(&jm_interface);
 
+  // Start up Patrick's root API.
+  // TODO!
 
 }
 
