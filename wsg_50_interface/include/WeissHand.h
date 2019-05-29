@@ -45,7 +45,10 @@ public:
       void read(void);
 
 private:
-      Hand hand;
+      shared_ptr<Hand> hand;
+
+      pr_hardware_interfaces::PositionCommandInterface movehand_interface;
+      pr_hardware_interfaces::MoveState movehand_state;
 };
 
 #endif
