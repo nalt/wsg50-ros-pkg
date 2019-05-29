@@ -95,12 +95,6 @@ WeissHand::WeissHand(ros::NodeHandle nh)
   hardware_interface::JointModeHandle mode_handle("joint_mode", &joint_mode);
   jm_interface.registerHandle(mode_handle);
 
-  // TODO: Why are the fingers seperate?
-  pr_hardware_interfaces::PositionCommandHandle position_command_handle(
-        "/wsg_50_joint_1", &movehand_state, &finger_pos);
-  movehand_interface.registerHandle(position_command_handle);
-  registerInterface(&movehand_interface);
-
   registerInterface(&jm_interface);
 
   // Start up Patrick's root API.
@@ -134,11 +128,6 @@ void WeissHand::sendPositionCommand(const std::vector<double>& command)
   hand->move_hand(command.at(0), speed);
 }
 
-void WeissHand::sendFingerPositionCommand(const std::vector<double>& command)
-{
-  // TODO.
-}
-
 void WeissHand::sendVelocityCommand(const std::vector<double>& command)
 {
   // TODO.
@@ -151,7 +140,7 @@ void WeissHand::sendTorqueCommand(const std::vector<double>& command)
 
 void WeissHand::write(void)
 {
-    // TODO: Should this be for the fingers?
+    // TODO: Enable other modes.
     sendPositionCommand(cmd_pos);
 }
 
@@ -164,5 +153,6 @@ void WeissHand::read(void)
 
     vel[0] = hand_status.speed;
 
+    // TODO: This should probably be renamed.
     eff[0] = hand_status.force;
 }

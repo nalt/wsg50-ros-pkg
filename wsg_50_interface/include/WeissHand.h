@@ -41,7 +41,6 @@ public:
       void sendPositionCommand(const std::vector<double>& command);
       void sendVelocityCommand(const std::vector<double>& command);
       void sendTorqueCommand(const std::vector<double>& command);
-      void sendFingerPositionCommand(const std::vector<double>& command);
 
       void write(void);
       void read(void);
@@ -55,14 +54,12 @@ private:
       hardware_interface::PositionJointInterface jnt_pos_interface;
       hardware_interface::JointModeInterface jm_interface;
 
-      pr_hardware_interfaces::PositionCommandInterface movehand_interface;
       pr_hardware_interfaces::MoveState movehand_state;
 
       vector<double> cmd_pos;
       vector<double> cmd_vel;
       vector<double> cmd_eff;
-      vector<double> pos; // contains full dof
-      vector<double> finger_pos; // just fingers, used for finger position control
+      vector<double> pos;
       vector<double> vel;
       vector<double> eff;
       vector<double> pos_offsets;
