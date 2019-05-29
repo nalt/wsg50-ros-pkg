@@ -19,8 +19,6 @@ find_package(catkin REQUIRED COMPONENTS
     )
 
 find_package(Boost REQUIRED COMPONENTS system)
-# TODO: Jaco did this, do we need to?
-# link_directories(${PROJECT_SOURCE_DIR}/lib/${CMAKE_LIBRARY_ARCHITECTURE})
 
 catkin_package(
   INCLUDE_DIRS
@@ -44,12 +42,6 @@ include_directories(
   ${Boost_INCLUDE_DIRS}
   ${wsg_50_driver_INCLUDE_DIRS}
   ${catkin_INCLUDE_DIRS}
-)
-
-# TODO: Need something like this?
-## Declare a cpp library
-add_library(jaco_hardware
-  src/WeissHand.cpp
 )
 
 # Declare a cpp executable
