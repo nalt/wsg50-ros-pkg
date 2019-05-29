@@ -7,7 +7,43 @@ using namespace std;
 WeissHand::WeissHand(ros::NodeHandle nh)
 : movehand_state(pr_hardware_interfaces::IDLE)
 {
-  // TODO: Call Patrick's core wrapper.
+  ROS_INFO("Starting to initialize jaco_hardware");
+  int i;
+  cmd_pos.resize(num_hand_dof);
+  cmd_vel.resize(num_hand_dof);
+  cmd_eff.resize(num_hand_dof);
+  zero_velocity_command.resize(num_hand_dof, 0.0);
+  pos.resize(num_hand_dof);
+  vel.resize(num_hand_dof);
+  eff.resize(num_hand_dof);
+
+  // connect and register the joint state interface.
+  // this gives joint states (pos, vel, eff) back as an output.
+  hardware_interface::JointStateHandle state_handle("wsg_50_joint_1", &pos[0], &vel[0], &eff[0]);
+  jnt_state_interface.registerHandle(state_handle);
+  registerInterface(&jnt_state_interface);
+
+  // connect and register the joint position interface
+  // this takes joint velocities in as a command.
+  hardware_interface::JointHandle vel_handle(jnt_state_interface.getHandle("wsg_50_joint_1"), &cmd_vel[0]);
+  jnt_vel_interface.registerHandle(vel_handle);
+  registerInterface(&jnt_vel_interface);
+
+  // connect and register the joint position interface
+  // this takes joint positions in as a command.
+  hardware_interface::JointHandle pos_handle(jnt_state_interface.getHandle("wsg_50_joint_1"), &cmd_pos[0]);
+  jnt_pos_interface.registerHandle(pos_handle);
+  registerInterface(&jnt_pos_interface);
+
+  // TODO: Do we really need this?
+  ROS_INFO("Register Effort Interface...");
+  // TODO.
+
+
+
+
+
+
 }
 
 ros::Time WeissHand::get_time(void)

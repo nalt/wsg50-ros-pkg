@@ -25,6 +25,8 @@
 
 using namespace std;
 
+static const int num_hand_dof = 1;
+
 class WeissHand: public hardware_interface::RobotHW
 {
 public:
