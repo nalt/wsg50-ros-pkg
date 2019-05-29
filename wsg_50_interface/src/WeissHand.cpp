@@ -144,3 +144,9 @@ void WeissHand::sendTorqueCommand(const std::vector<double>& command)
 {
     // TODO.
 }
+
+void WeissHand::write(void)
+{
+    // TODO: Should this be for the fingers?
+    sendPositionCommand(cmd_pos);
+}
