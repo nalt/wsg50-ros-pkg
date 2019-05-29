@@ -47,8 +47,27 @@ public:
 private:
       shared_ptr<Hand> hand;
 
+      hardware_interface::JointStateInterface jnt_state_interface;
+      hardware_interface::EffortJointInterface jnt_eff_interface;
+      hardware_interface::VelocityJointInterface jnt_vel_interface;
+      hardware_interface::PositionJointInterface jnt_pos_interface;
+      hardware_interface::JointModeInterface jm_interface;
+
       pr_hardware_interfaces::PositionCommandInterface movehand_interface;
       pr_hardware_interfaces::MoveState movehand_state;
+
+      vector<double> cmd_pos;
+      vector<double> cmd_vel;
+      vector<double> cmd_eff;
+      vector<double> pos; // contains full dof
+      vector<double> finger_pos; // just fingers, used for finger position control
+      vector<double> vel;
+      vector<double> eff;
+      vector<double> pos_offsets;
+      vector<double> soft_limits;
+      vector<double> zero_velocity_command;
+      int joint_mode; // this tells whether we're in position or velocity control mode
+      int last_mode;
 };
 
 #endif
