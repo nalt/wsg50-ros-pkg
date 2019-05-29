@@ -52,24 +52,12 @@ add_library(jaco_hardware
   src/WeissHand.cpp
 )
 
-# TODO: Need something like this?
-## Declare a cpp executable
-#add_executable(jaco_hardware src/main.cpp src/JacoRobot.cpp)
+# Declare a cpp executable
+add_executable(weiss_hardware src/main.cpp src/WeissHand.cpp)
 
-# TODO: Need something like this?
-## Add cmake target dependencies of the executable/library
-## as an example, message headers may need to be generated before nodes
-# add_dependencies(jaco_hardware_node jaco_hardware_generate_messages_cpp)
-#set(KINOVA_ARM_LIBS ${catkin_LIBRARIES})
-#set(KINOVA_ARM_LIBS
-#    ${KINOVA_ARM_LIBS}
-#    -l:USBCommLayerUbuntu.so
-#    -l:USBCommandLayerUbuntu.so)
-
-# TODO: Need something like this?
-## Specify libraries to link a library or executable target against
-# target_link_libraries(jaco_hardware
-#   ${catkin_LIBRARIES}
-#   ${Boost_LIBRARIES}
-#   ${KINOVA_ARM_LIBS}
-# )
+# Specify libraries to link a library or executable target against
+ target_link_libraries(weiss_hardware
+   ${catkin_LIBRARIES}
+   ${Boost_LIBRARIES}
+   ${wsg_50_driver_LIBRARIES}
+)

@@ -48,7 +48,6 @@ bool read_hand_params(ros::NodeHandle& nh, std::string param_prefix, Hand::hand_
     return true;
 }
 
-
 WeissHand::WeissHand(ros::NodeHandle nh)
 : movehand_state(pr_hardware_interfaces::IDLE)
 {
@@ -106,6 +105,11 @@ WeissHand::WeissHand(ros::NodeHandle nh)
 
   hand = std::make_shared<Hand>(&hand_params, finger0_params, finger1_params);
 	hand->start_reading();
+}
+
+WeissHand::~WeissHand()
+{
+    ros::Duration(0.10).sleep();
 }
 
 ros::Time WeissHand::get_time(void)
