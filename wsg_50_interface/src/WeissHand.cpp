@@ -127,7 +127,11 @@ ros::Duration WeissHand::get_period(void)
 
 void WeissHand::sendPositionCommand(const std::vector<double>& command)
 {
-  // TODO.
+  // TODO: What about sendFingerPositionCommand()???
+
+  // NOTE: Speed is hard-coded for now.
+  double speed = 30.0;
+  hand->move_hand(command.at(0), speed);
 }
 
 void WeissHand::sendFingerPositionCommand(const std::vector<double>& command)
