@@ -150,3 +150,15 @@ void WeissHand::write(void)
     // TODO: Should this be for the fingers?
     sendPositionCommand(cmd_pos);
 }
+
+void WeissHand::read(void)
+{
+    Hand::hand_data_t hand_status = hand->get_hand_state();
+
+    // TODO: Seperate finger positions and other positions.
+    pos[0] = hand_status.width;
+
+    vel[0] = hand_status.speed;
+
+    eff[0] = hand_status.force;
+}
