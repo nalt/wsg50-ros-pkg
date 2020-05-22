@@ -1,0 +1,15 @@
+<?xml version="1.0"?>
+<launch>
+
+  <!--<node name="wsg50_driver"  pkg="wsg_50_driver" type="wsg_50_ip" launch-prefix="gdbserver localhost:3456">-->
+  <!-- launch-prefix="nice -n -10" -->
+  <group ns="xamla">
+  	  <node name="wsg50_driver"  pkg="wsg_50_driver" type="wsg_50_ip" output="screen" launch-prefix="gdbserver localhost:3456" >
+		<param name="ip" type="string" value="192.168.50.33"/>
+		<param name="port" type="int" value="1000"/>
+		<rosparam command="load" file="$(find wsg_50_driver)/launch/grippercontroller.yaml" />
+	  </node>
+  </group>
+
+</launch>
+

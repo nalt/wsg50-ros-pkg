@@ -1,4 +1,0 @@
-string direction
-float32 increment
----
-uint8 error

@@ -51,6 +51,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <poll.h>
 
 #include "wsg_50/interface.h"
 #include "wsg_50/udp.h"
@@ -76,10 +77,12 @@ const interface_t udp =
 	.open = &udp_open,
 	.close = &udp_close,
 	.read = &udp_read,
-	.write = &udp_write
+	.write = &udp_write,
+	.data_available = &udp_data_available
 };
 
 static udp_conn_t conn;
+static struct pollfd udp_poll_set[1];
 
 
 //------------------------------------------------------------------------
@@ -136,6 +139,9 @@ int udp_open( const void *params )
     	return -1;
     }
 
+    udp_poll_set[0].fd = conn.sock;
+    udp_poll_set[0].events = POLLIN;
+
     return 0;
 }
 
@@ -148,6 +154,7 @@ int udp_open( const void *params )
 
 void udp_close( void )
 {
+	udp_poll_set[0].fd = NULL;
 	close( conn.sock );
 	conn.sock = 0;
 }
@@ -268,4 +275,19 @@ int udp_write( unsigned char *buf, unsigned int len )
 	res = sendto( conn.sock, buf, len, 0, (struct sockaddr *) &conn.si_server, (socklen_t) slen );
     if ( res >= 0 ) return res;
     else return -1;
+}
+
+/**
+ * Check if the socket has data to read
+ * @return 0 if data is available, -1 otherwise
+ */
+
+int udp_data_available(unsigned int timeout)
+{
+	poll(udp_poll_set, 1, timeout);
+	if( (udp_poll_set[0].fd != NULL) && (udp_poll_set[0].revents & POLLIN) ) {
+		return 0;
+	}
+
+	return -1;
 }

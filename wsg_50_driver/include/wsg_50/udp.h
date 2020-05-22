@@ -94,7 +94,7 @@ int udp_open( const void *params );
 void udp_close( void );
 int udp_read( unsigned char *buf, unsigned int len );
 int udp_write( unsigned char *buf, unsigned int len );
-
+int udp_data_available( unsigned int );
 
 #ifdef __cplusplus
 }

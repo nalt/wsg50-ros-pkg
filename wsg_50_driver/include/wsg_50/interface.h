@@ -53,6 +53,7 @@ typedef struct
 	void ( *close ) ( void );
 	int ( *read ) ( unsigned char *, unsigned int );
 	int ( *write ) ( unsigned char *, unsigned int );
+	int ( *data_available) (unsigned int timeout);
 } interface_t;
 
 

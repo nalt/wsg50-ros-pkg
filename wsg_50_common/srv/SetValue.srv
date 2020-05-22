@@ -1,3 +1,3 @@
-float32 val
+float64 val
 ---
 uint8 error
