@@ -85,7 +85,7 @@
 	     <!--box size="0.0175 0.03 0.024"/-->
           </geometry>
           <material name="black">
-		<color rgba="0 0 0 0"/>
+		<color rgba="0 0 0 1"/>
       	  </material>
       </visual>
 
@@ -130,7 +130,7 @@
              <mesh filename="package://wsg_50_simulation/meshes/WSG-FMF.stl" scale="0.001 0.001 0.001"/>
           </geometry>
           <material name="black">
-		<color rgba="0 0 0 0"/>
+		<color rgba="0 0 0 1"/>
       	  </material>
       </visual>
 
@@ -183,7 +183,7 @@
 	     <!--box size="0.0175 0.03 0.024"/-->
           </geometry>
           <material name="black">
-		<color rgba="0 0 0 0"/>
+		<color rgba="0 0 0 1"/>
       	  </material>
       </visual>
 
@@ -227,7 +227,7 @@
              <mesh filename="package://wsg_50_simulation/meshes/WSG-FMF.stl" scale="0.001 0.001 0.001"/>
           </geometry>
           <material name="black">
-		<color rgba="0 0 0 0"/>
+		<color rgba="0 0 0 1"/>
       	  </material>
       </visual>
 
