@@ -11,7 +11,7 @@
 <xacro:macro name="wsg_50_xacro" params="name parent finger_length finger_tip *origin">
 
  <joint name="${name}_anterior_gripper_joint" type="fixed">
-    <insert_block name="origin"/>
+    <xacro:insert_block name="origin"/>
     <parent link="${parent}"/>
     <child link="${name}_base_link"/>
  </joint>
