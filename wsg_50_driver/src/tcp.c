@@ -48,9 +48,12 @@
 // Includes
 //------------------------------------------------------------------------
 
+#define _GNU_SOURCE
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <poll.h>
+#include <signal.h>
 
 #include "wsg_50/interface.h"
 #include "wsg_50/tcp.h"
@@ -77,11 +80,13 @@ const interface_t tcp =
 	.open = &tcp_open,
 	.close = &tcp_close,
 	.read = &tcp_read,
-	.write = &tcp_write
+	.write = &tcp_write,
+	.data_available = &tcp_data_available
 };
 
 static tcp_conn_t conn;
-
+static struct pollfd tcp_poll_set[1];
+static unsigned char peak_read[1];
 
 //------------------------------------------------------------------------
 // Local function prototypes
@@ -133,6 +138,9 @@ int tcp_open( const void *params )
     res = connect( conn.sock, (struct sockaddr *) &conn.si_server, sizeof(conn.si_server) );
     if ( res < 0 ) return -1;
 
+    tcp_poll_set[0].fd = conn.sock;
+    tcp_poll_set[0].events = POLLIN | POLLPRI | POLLRDHUP | POLLHUP | POLLRDNORM | POLLERR;
+
     return 0;
 }
 
@@ -145,6 +153,7 @@ int tcp_open( const void *params )
 
 void tcp_close( void )
 {
+	tcp_poll_set[0].fd = NULL;
 	close( conn.sock );
 	conn.sock = 0;
 }
@@ -165,10 +174,19 @@ int tcp_read( unsigned char *buf, unsigned int len )
 
 	// Read desired number of bytes
 	res = recv( conn.sock, buf, len, 0 );
+	if (res == 0) {
+		printf("Socket closed unexpectedly.\n");
+		close( conn.sock );
+		tcp_poll_set[0].fd = NULL;
+		return -1;
+	}
+
 	if ( res < 0 )
 	{
 		close( conn.sock );
-		quit( "Failed to read data from TCP socket\n" );
+		tcp_poll_set[0].fd = NULL;
+		printf( "Failed to read data from TCP socket\n" );
+		return -1;
 	}
 
     return res;
@@ -199,6 +217,32 @@ int tcp_write( unsigned char *buf, unsigned int len )
     }
 }
 
+/**
+ * Check if the socket has data to read
+ * @return 1 if data is available, 0 if no data is available, -1 on error
+ */
+
+int tcp_data_available(unsigned int timeout)
+{
+	int res = poll(tcp_poll_set, 1, timeout);
+	if (res > 0) {
+		if( (tcp_poll_set[0].fd != NULL) && (tcp_poll_set[0].revents & POLLIN) ) {
+			if (recv(conn.sock, peak_read, sizeof(peak_read), MSG_PEEK | MSG_DONTWAIT) == 0) {
+				// if recv returns zero, that means the connection has been closed
+				tcp_close();
+				return -1;
+			}
+			return 1;
+		} else {
+			printf("-- -1 \n");
+			return -1;
+		}
+	} else if (res == 0){
+		return 0;
+	}
+
+	return -1;
+}
 
 //------------------------------------------------------------------------
 // Test implementation

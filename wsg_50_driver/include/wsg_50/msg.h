@@ -84,6 +84,7 @@ int msg_change_interface( const interface_t *iface );
 int msg_send( msg_t *msg );
 int msg_receive( msg_t *msg );
 void msg_free( msg_t *msg );
+int msg_available();
 
 #ifdef __cplusplus
 }

@@ -74,7 +74,6 @@
 
 static const interface_t *interface;
 
-
 //------------------------------------------------------------------------
 // Local function prototypes
 //------------------------------------------------------------------------
@@ -110,7 +109,14 @@ int msg_receive( msg_t *msg )
 	while( sync != MSG_PREAMBLE_LEN )
 	{
 		res = interface->read( header, 1 );
-		if ( header[0] == MSG_PREAMBLE_BYTE ) sync++;
+		if ( header[0] == MSG_PREAMBLE_BYTE ) {
+			sync++;
+		} else if ((res == -1) || (res == 0)) {
+			printf("Failed to read data\n");
+			return -1;
+		} else {
+			sync = 0;
+		}
 	}
 
 	// Read header
@@ -149,6 +155,8 @@ int msg_receive( msg_t *msg )
 		fprintf( stderr, "Checksum error\n" );
 		return -1;
 	}
+
+	//printf("-M- received %d\n", msg->id);
 
 	return msg->len + 8;
 }
@@ -196,6 +204,7 @@ int msg_send( msg_t *msg )
 		memcpy( buf + 6, msg->data, msg->len );
 		memcpy( buf + 6 + msg->len, (unsigned char *) &crc, 2 );
 
+		//printf("-M- send %d\n", msg->id);
 		res = interface->write( buf, 6 + msg->len + 2 );
         if ( res < 6 + (int)msg->len + 2 )
 		{
@@ -307,6 +316,13 @@ void msg_free( msg_t *msg )
 	memset( msg, 0, sizeof( msg ) );
 }
 
+int msg_available()
+{
+	if (!interface) {
+		return false;
+	}
+	return interface->data_available(1);
+}
 
 //------------------------------------------------------------------------
 // Test implementation
