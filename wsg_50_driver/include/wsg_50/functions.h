@@ -27,12 +27,12 @@
 #ifndef FUNCTIONS_H_
 #define FUNCTIONS_H_
 
- #include <string>
 
 //------------------------------------------------------------------------
 // Includes
 //------------------------------------------------------------------------
 
+#include <string>
 
 //------------------------------------------------------------------------
 // Macros
@@ -77,7 +77,7 @@ int setAcceleration( float acc );
 int setGraspingForceLimit( float force );
 int doTare( void );
 
-const char * systemState( void );
+std::string systemState( void );
 int graspingState( void );
 float getOpening(int auto_update = 0);
 float getForce(int auto_update = 0);

@@ -1,0 +1,23 @@
+<?xml version="1.0"?>
+<launch>
+  <arg name="ip" default="192.168.0.20.2" /><!-- Factory default IP -->
+  <arg name="port" default="1000" />
+  <arg name="protocol" default="tcp" /><!-- Either TCP or UDP -->
+  <arg name="local_port" default="1501" /><!-- Only used if protocol is UDP -->
+  <arg name="com_mode" default="polling" /><!-- or script, auto_update -->
+  <arg name="rate" default="1" /> <!-- WSG50 HW revision 2: up to 30 Hz with script; 140Hz with auto_update -->
+  <arg name="force" default="10" />
+  <arg name="home_at_start" default="true"/> <!-- Homes module and tares force sensor if enabled -->
+
+  <node name="wsg_50_driver"  pkg="wsg_50_driver" type="wsg_50_ip">
+    <param name="ip" type="string" value="$(arg ip)"/>
+    <param name="port" type="int" value="$(arg port)"/>
+    <param name="protocol" type="string" value="$(arg protocol)"/>
+    <param name="local_port" type="int" value="$(arg local_port)"/>
+    <param name="com_mode" type="string" value="$(arg com_mode)"/>
+    <param name="rate" type="double" value="$(arg rate)"/>
+    <param name="grasping_force" type="double" value="$(arg force)"/>
+    <param name="home_at_start" type="boolean" value="$(arg home_at_start)"/>
+  </node>
+</launch>
+

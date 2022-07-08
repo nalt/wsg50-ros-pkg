@@ -266,10 +266,7 @@ void timer_cb(const ros::TimerEvent& ev)
 	info.speed = 0.0;
 
     if (g_mode_polling) {
-        const char * state = systemState();
-        if (!state)
-            return;
-        info.state_text = std::string(state);
+        info.state_text = systemState();
 		info.position = getOpening();
 		acc = getAcceleration();
 		info.f_motor = getForce();//getGraspingForce();
@@ -526,7 +523,7 @@ int main( int argc, char **argv )
    std::string ip, protocol, com_mode;
    int port, local_port;
    double rate, grasping_force;
-   bool use_udp = false;
+   bool use_udp, home_at_start = false;
 
    nh.param("ip", ip, std::string("192.168.1.20"));
    nh.param("port", port, 1000);
@@ -535,11 +532,13 @@ int main( int argc, char **argv )
    nh.param("com_mode", com_mode, std::string(""));
    nh.param("rate", rate, 1.0); // With custom script, up to 30Hz are possible
    nh.param("grasping_force", grasping_force, 0.0);
+   nh.param("home_at_start", home_at_start, true);
 
    if (protocol == "udp")
        use_udp = true;
    else
        protocol = "tcp";
+   
    if (com_mode == "script")
        g_mode_script = true;
    else if (com_mode == "auto_update")
@@ -590,10 +589,13 @@ int main( int argc, char **argv )
         if (g_mode_script || g_mode_periodic)
             g_pub_moving = nh.advertise<std_msgs::Bool>("moving", 10);
 
-		ROS_INFO("Ready to use. Homing and taring now...");
-		homing();
-        ros::Duration(0.5).sleep();
-        doTare();
+        if (home_at_start) {
+            ROS_INFO("Homing and taring now.");
+		    homing();
+            ros::Duration(0.5).sleep();
+            doTare();
+        }
+        ROS_INFO("Ready to use.");
 
 		if (grasping_force > 0.0) {
 			ROS_INFO("Setting grasping force limit to %5.1f", grasping_force);
@@ -621,8 +623,7 @@ int main( int argc, char **argv )
    sleep(1);
    cmd_disconnect();
 
-	return 0;
-
+   return 0;
 }
 
 

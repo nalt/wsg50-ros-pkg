@@ -31,6 +31,9 @@
 // Includes
 //------------------------------------------------------------------------
 
+#ifdef __cplusplus
+    #include <string>
+#endif
 
 //------------------------------------------------------------------------
 // Macros
@@ -161,9 +164,9 @@ typedef enum
 ip_addr_t str_to_ipaddr( const char *str );
 const char * status_to_str( status_t status );
 void quit( const char *reason );
-const char * getStateValues( unsigned char * b);
 
 #ifdef __cplusplus
+std::string get_state_text( unsigned char * b);
 }
 #endif
 

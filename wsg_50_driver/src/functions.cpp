@@ -368,7 +368,7 @@ int script_measure_move (unsigned char cmd_type, float cmd_width, float cmd_spee
 		unsigned char resp_state[6] = {0,0,0,0,0,0};
 		resp_state[2] = resp[2];
 		info.state = resp[2];					 off+=1;
-		info.state_text = std::string(getStateValues(resp_state));
+		info.state_text = get_state_text(resp_state);
 		info.position = convert(&resp[off]);     off+=4;
 		info.speed = convert(&resp[off]);        off+=4;
 		info.f_motor = convert(&resp[off]);      off+=4;
@@ -397,12 +397,9 @@ int script_measure_move (unsigned char cmd_type, float cmd_width, float cmd_spee
 	return 1;
 }
 
-
-
 ///////////////////
 // SET FUNCTIONS //
 ///////////////////
-
 
 int setAcceleration( float acc )
 {
@@ -505,7 +502,7 @@ int doTare( void )
 ///////////////////
 
 
-const char * systemState( void ) 
+std::string systemState( void ) 
 {
 	status_t status;
 	int res;
@@ -535,19 +532,16 @@ const char * systemState( void )
 	dbgPrint("MSB -> resp[3]: %x\n", resp[5]);
 	*/
 
-	return getStateValues(resp);
-
 	if ( status != E_SUCCESS )
 	{
 		dbgPrint( "Command GET SYSTEM STATE not successful: %s\n", status_to_str( status ) );
 		free( resp );
-		return 0;
+		return "";
 	}
 
+	std::string state_text = get_state_text(resp);
 	free( resp );
-
-    return 0;
-
+	return state_text;
 	//return (int) resp[2]; MBJ
 }
 

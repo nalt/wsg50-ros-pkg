@@ -1,18 +1,22 @@
 <launch>
+  <arg name="ip" default="192.168.0.20.2" /><!-- Factory default IP -->
+  <arg name="port" default="1000" />
   <arg name="com_mode" default="script" /><!-- or auto_update, polling -->
+  <arg name="rate" default="50" /> <!-- WSG50 HW revision 2: up to 30 Hz with script; 140Hz with auto_update -->
   <arg name="remap" default="false" /><!-- Remap joint_states topic. e.g. for joint_state_publisher -->
   <arg name="force" default="10" />
+  <arg name="home_at_start" default="true"/> <!-- Homes module and tares force sensor if enabled -->
 
   <remap from="/joint_states" to="/joint_states_gripper" if="$(arg remap)"/>
 
   <node  name="wsg_50_driver"  pkg="wsg_50_driver" type="wsg_50_ip" output="screen">
-	<param name="ip" type="string" value="192.168.20.2"/>
-	<param name="port" type="int" value="1000"/>
+    <param name="ip" type="string" value="$(arg ip)"/>
+    <param name="port" type="int" value="$(arg port)"/>
     <param name="protocol" type="string" value="tcp"/>
     <param name="com_mode" type="string" value="$(arg com_mode)"/>
-    <param name="rate" type="double" value="50"/> <!-- WSG50 HW revision 2: up to 30 Hz with script; 140Hz with auto_update -->
+    <param name="rate" type="double" value="$(arg rate)"/> 
     <param name="grasping_force" type="double" value="$(arg force)"/>
+    <param name="home_at_start" type="boolean" value="$(arg home_at_start)"/>
   </node>
-
 </launch>
 

@@ -70,7 +70,7 @@ function process()
     speed = mc.speed();
     force = mc.aforce();
 
-    force_l = math.nan; force_r = math.nan;
+    force_l = 0/0; force_r = 0/0;
     if nfin >= 1 then force_l = finger.data(0) end
     if nfin >= 2 then force_r = finger.data(1) end
     

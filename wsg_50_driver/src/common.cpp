@@ -51,6 +51,7 @@
 
 #include <stdio.h>
 #include <stdlib.h>
+#include <string>
 #include <string.h>
 
 #include "wsg_50/common.h"
@@ -170,8 +171,14 @@ void quit( const char *reason )
 	exit(1);
 }
 
+/**
+ * @brief Convert gripper status array into a human-readable string.
+ * 
+ * @param b 
+ * @return std::string
+ */
 
-const char * getStateValues( unsigned char *b ){
+std::string get_state_text( unsigned char *b ){
 
 	/*
 	unsigned char aux[4]; 
