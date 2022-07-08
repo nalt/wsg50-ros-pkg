@@ -6,6 +6,7 @@
   <arg name="rate" default="50" />
   <arg name="remap" default="false" /><!-- Remap joint_states topic. e.g. for joint_state_publisher -->
   <arg name="force" default="10" />
+  <arg name="home_at_start" default="true"/> <!-- Homes module and tares force sensor if enabled -->
 
   <remap from="/joint_states" to="/joint_states_gripper" if="$(arg remap)"/>
   
@@ -17,7 +18,7 @@
     <param name="com_mode" type="string" value="$(arg com_mode)"/>
     <param name="rate" type="double" value="$(arg rate)"/>
     <param name="grasping_force" type="double" value="$(arg force)"/>
+    <param name="home_at_start" type="boolean" value="$(arg home_at_start)"/>
   </node>
-
 </launch>
 

@@ -397,9 +397,14 @@ int script_measure_move (unsigned char cmd_type, float cmd_width, float cmd_spee
 	return 1;
 }
 
+///////////////////
+// SET FUNCTIONS //
+///////////////////
 
-
-/////////////////// You are returning by-value, not by reference. As such it doesn't matter that 'mystring' is gone. 
+int setAcceleration( float acc )
+{
+	status_t status;
+	int res;
 	unsigned char payload[4];
 	unsigned char *resp;
 	unsigned int resp_len;
